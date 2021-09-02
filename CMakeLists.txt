@@ -18,7 +18,7 @@ find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 
-add_executable(game-proj vengine/vengine.h vengine/event_source.hpp vengine/vengine.cpp)
+add_executable(game-proj vengine/vengine.h vengine/event_source.hpp vengine/vengine.cpp vengine/ram_file.cpp vengine/ram_file.hpp vengine/io.hpp vengine/io.cpp vengine/vulkan-utils/pipeline_builder.hpp vengine/vulkan-utils/result.hpp)
 target_sources(game-proj PRIVATE main.cpp)
 target_compile_definitions(game-proj PUBLIC GLFW_INCLUDE_VULKAN)
 target_link_libraries(game-proj glfw)

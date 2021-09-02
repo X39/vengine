@@ -77,6 +77,19 @@ namespace vengine::utils
                 it.func(source, arg);
             }
         }
+
+        /**
+         * Raises this event_source.
+         *
+         * Subscribers are called in the same order they have subscribed.
+         *
+         * @param source The source of the event.
+         * @param arg The event args passed into the event.
+         */
+        [[maybe_unused]] void raise(TSource* source, TArg& arg)
+        {
+            raise(*source, arg);
+        }
         /**
          * Raises this event_source.
          *
@@ -92,6 +105,18 @@ namespace vengine::utils
             {
                 it.func(source, arg);
             }
+        }
+        /**
+         * Raises this event_source.
+         *
+         * Subscribers are called in the same order they have subscribed.
+         *
+         * @param source The source of the event.
+         * @param arg The event args passed into the event.
+         */
+        [[maybe_unused]] void raise(TSource* source, TArg&& arg)
+        {
+            raise(*source, arg);
         }
     public:
         event_source() : m_event_id_top(0), m_events(), m_mutex() {}

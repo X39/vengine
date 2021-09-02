@@ -6,98 +6,127 @@
 #define GAME_PROJ_VENGINE_H
 
 #include "event_source.hpp"
+#include "ram_file.hpp"
 #include "VkBootstrap.h"
+
+#include <vector>
+#include <optional>
 
 namespace vengine
 {
     class vengine
     {
-    public:
 
-        class glfw_window
-        {
-            void glfw_set_window_callbacks();
-
-            void glfw_unset_window_callbacks();
-            void* m_window_handle;
-            bool m_initialized;
-            friend class vengine;
-            glfw_window(int width, int height, const std::string& title);
-            ~glfw_window();
-
-        public:
-            struct size { int width; int height; };
-            [[maybe_unused]] void window_size(int width, int height) { window_size({width, height}); }
-            [[maybe_unused]] void window_size(const size& s);
-            [[maybe_unused]] [[nodiscard]] size window_size() const;
-
-            [[maybe_unused]] void window_title(const std::string& title);
-            static void handle_pending_events();
-            void swap_buffers();
-        public:
-            utils::event_source<glfw_window, utils::event_args> on_window_close;
-
-            struct on_window_focused_event_args
-            {
-                [[maybe_unused]] bool has_focus;
-            };
-            utils::event_source<glfw_window, on_window_focused_event_args> on_window_focus;
-
-            struct on_window_iconified_event_args
-            {
-                [[maybe_unused]] bool is_iconified;
-            };
-            utils::event_source<glfw_window, on_window_iconified_event_args> on_window_iconified;
-
-            struct on_window_maximize_event_args
-            {
-                [[maybe_unused]] bool is_maximized;
-            };
-            utils::event_source<glfw_window, on_window_maximize_event_args> on_window_maximize;
-
-            struct on_window_pos_event_args
-            {
-                [[maybe_unused]] int pos_x;
-                [[maybe_unused]] int pos_y;
-            };
-            utils::event_source<glfw_window, on_window_pos_event_args> on_window_pos;
-
-            utils::event_source<glfw_window, utils::event_args> on_window_refresh;
-
-            struct on_window_size_event_args
-            {
-                [[maybe_unused]] int width;
-                [[maybe_unused]] int height;
-            };
-            utils::event_source<glfw_window, on_window_size_event_args> on_window_size;
-
-            struct on_window_content_scale_event_args
-            {
-                [[maybe_unused]] float scale_x;
-                [[maybe_unused]] float scale_y;
-            };
-            utils::event_source<glfw_window, on_window_content_scale_event_args> on_window_content_scale;
-
-            [[maybe_unused]] static void set_error_callback(void(*error_handle)(int error_code, const char* error_message));
-        };
+#pragma region GLFW
     private:
-        glfw_window m_glfw;
+        void glfw_set_window_callbacks();
+
+        void glfw_unset_window_callbacks();
+        void* m_window_handle{};
+        friend class vengine;
+        void glfw_window_init(int width, int height, const std::string& title);
+        void glfw_window_destroy();
+
+    public:
+        struct size { int width; int height; };
+        [[maybe_unused]] void window_size(int width, int height) { window_size({width, height}); }
+        [[maybe_unused]] void window_size(const size& s);
+        [[maybe_unused]] [[nodiscard]] size window_size() const;
+
+        [[maybe_unused]] void window_title(const std::string& title);
+        static void handle_pending_events();
+        void swap_buffers();
+    public:
+        utils::event_source<vengine, utils::event_args> on_window_close;
+
+        struct on_window_focused_event_args
+        {
+            [[maybe_unused]] bool has_focus;
+        };
+        utils::event_source<vengine, on_window_focused_event_args> on_window_focus;
+
+        struct on_window_iconified_event_args
+        {
+            [[maybe_unused]] bool is_iconified;
+        };
+        utils::event_source<vengine, on_window_iconified_event_args> on_window_iconified;
+
+        struct on_window_maximize_event_args
+        {
+            [[maybe_unused]] bool is_maximized;
+        };
+        utils::event_source<vengine, on_window_maximize_event_args> on_window_maximize;
+
+        struct on_window_pos_event_args
+        {
+            [[maybe_unused]] int pos_x;
+            [[maybe_unused]] int pos_y;
+        };
+        utils::event_source<vengine, on_window_pos_event_args> on_window_pos;
+
+        utils::event_source<vengine, utils::event_args> on_window_refresh;
+
+        struct on_window_size_event_args
+        {
+            [[maybe_unused]] int width;
+            [[maybe_unused]] int height;
+        };
+        utils::event_source<vengine, on_window_size_event_args> on_window_size;
+
+        struct on_window_content_scale_event_args
+        {
+            [[maybe_unused]] float scale_x;
+            [[maybe_unused]] float scale_y;
+        };
+        utils::event_source<vengine, on_window_content_scale_event_args> on_window_content_scale;
+
+        [[maybe_unused]] static void set_error_callback(void(*error_handle)(int error_code, const char* error_message));
+
+#pragma endregion
+    private:
+        bool m_glfw_initialized;
         bool m_initialized;
-        vkb::Instance m_vulkan_instance;
+        size_t m_frame_counter;
+
+        vkb::Instance m_vkb_instance;
         VkSurfaceKHR m_vulkan_surface{};
-        vkb::PhysicalDevice m_vulkan_physical_device;
-        vkb::Device m_vulkan_device;
-        vkb::Swapchain m_vulkan_swap_chain;
-        VkQueue m_vulkan_graphics_queue;
+        vkb::PhysicalDevice m_vkb_physical_device;
+        vkb::Device m_vkb_device;
+        vkb::Swapchain m_vkb_swap_chain;
+        VkQueue m_vkb_graphics_queue;
+        uint32_t m_vkb_graphics_queue_index;
+        VkCommandPool m_vulkan_command_pool{};
+        VkRenderPass m_vulkan_render_pass{};
+        VkSemaphore m_vulkan_present_semaphore{};
+        VkSemaphore m_vulkan_render_semaphore{};
+        VkFence m_vulkan_render_fence{};
+        std::vector<VkShaderModule> m_shader_modules;
+        std::vector<VkCommandBuffer> m_command_buffers;
+        std::vector<VkImage> m_swap_chain_images;
+        std::vector<VkImageView> m_swap_chain_image_views;
+        std::vector<VkFramebuffer> m_frame_buffers;
+
+
+        std::vector<std::string> m_errors;
     public:
         vengine();
         ~vengine();
 
-        [[maybe_unused]] [[nodiscard]] glfw_window& window() { return m_glfw; }
-        [[maybe_unused]] [[nodiscard]] const glfw_window& window() const { return m_glfw; }
+        [[nodiscard]] size_t frame_count() const { return m_frame_counter; }
+        [[nodiscard]] bool good() const { return m_glfw_initialized && m_initialized; }
+        [[nodiscard]] std::vector<std::string> get_errors() const { return m_errors; }
+        [[maybe_unused]] void clear_errors() { m_errors.clear(); }
 
-        [[nodiscard]] bool good() const { return m_glfw.m_initialized && m_initialized; }
+        [[maybe_unused]] [[nodiscard]] std::optional<VkCommandBuffer> create_command_buffer();
+        [[maybe_unused]] void destroy_command_buffer(VkCommandBuffer buffer);
 
+        [[maybe_unused]] [[nodiscard]] std::optional<VkShaderModule> create_shader_module(const ram_file& file);
+        [[maybe_unused]] void destroy_shader_module(VkShaderModule buffer);
+
+        void render();
+
+    public:
+        utils::event_source<vengine, utils::event_args> on_render_pass;
     };
 }
 
