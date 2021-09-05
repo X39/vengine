@@ -5,6 +5,10 @@
 #ifndef GAME_PROJ_PIPELINE_BUILDER_HPP
 #define GAME_PROJ_PIPELINE_BUILDER_HPP
 
+#include "result.hpp"
+#include "../log.hpp"
+#include "stringify.hpp"
+
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -14,18 +18,19 @@ namespace vengine::vulkan_utils
     {
         VkDevice m_device;
         VkRenderPass m_render_pass;
+        VkViewport m_viewport;
+        VkRect2D m_scissors;
+        VkPipelineLayout m_pipeline_layout;
         std::vector<VkPipelineShaderStageCreateInfo> m_shader_stage_create_infos;
-        VkPipelineVertexInputStateCreateInfo m_vertex_input_state_create_info;
-        VkPipelineInputAssemblyStateCreateInfo m_input_assembly_state_create_info;
-        VkPipelineRasterizationStateCreateInfo m_rasterization_state_create_info;
-        VkPipelineMultisampleStateCreateInfo m_multisample_state_create_info;
+        std::optional<VkPipelineVertexInputStateCreateInfo> m_vertex_input_state_create_info;
+        std::optional<VkPipelineInputAssemblyStateCreateInfo> m_input_assembly_state_create_info;
+        std::optional<VkPipelineRasterizationStateCreateInfo> m_rasterization_state_create_info;
+        std::optional<VkPipelineMultisampleStateCreateInfo> m_multisample_state_create_info;
         std::vector<VkPipelineColorBlendAttachmentState> m_color_blend_attachment_states;
-        VkPipelineLayoutCreateInfo m_layout_create_info;
+        std::optional<VkPipelineLayoutCreateInfo> m_layout_create_info;
     public:
-        pipeline_builder(VkDevice device, VkRenderPass render_pass)
-                : m_device(device), m_render_pass(render_pass), m_vertex_input_state_create_info({ }),
-                  m_input_assembly_state_create_info({ }), m_rasterization_state_create_info({ }),
-                  m_multisample_state_create_info({ })
+        pipeline_builder(VkDevice device, VkRenderPass render_pass, VkViewport viewport, VkRect2D scissors, VkPipelineLayout pipeline_layout)
+                : m_device(device), m_render_pass(render_pass), m_viewport(viewport), m_scissors(scissors), m_pipeline_layout(pipeline_layout)
         {
 
         }
@@ -91,6 +96,7 @@ namespace vengine::vulkan_utils
             rasterization_state_create_info.depthBiasClamp = 0.0f;
             rasterization_state_create_info.depthBiasSlopeFactor = 0.0f;
 
+            m_rasterization_state_create_info = rasterization_state_create_info;
             return *this;
         }
 
@@ -113,22 +119,6 @@ namespace vengine::vulkan_utils
             return *this;
         }
 
-        pipeline_builder &set_layout()
-        {
-            VkPipelineLayoutCreateInfo layout_create_info{};
-            layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            layout_create_info.pNext = nullptr;
-            layout_create_info.flags = 0;
-            layout_create_info.setLayoutCount = 0;
-            layout_create_info.pSetLayouts = nullptr;
-            layout_create_info.pushConstantRangeCount = 0;
-            layout_create_info.pPushConstantRanges = nullptr;
-
-            m_layout_create_info = layout_create_info;
-
-            return *this;
-        }
-
         pipeline_builder &add_color_blend()
         {
             VkPipelineColorBlendAttachmentState color_blend_attachment_state = { };
@@ -143,17 +133,46 @@ namespace vengine::vulkan_utils
             return *this;
         }
 
-        void build(VkViewport viewport, VkRect2D scissors)
+        result<VkPipeline> build()
         {
-
+            if (!m_vertex_input_state_create_info.has_value())
+            {
+                auto message = "Vertex-Input-State not set. (set_vertex_input)";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
+            if (!m_input_assembly_state_create_info.has_value())
+            {
+                auto message = "Input-Assembly-State not set. (set_input_assembly)";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
+            if (!m_rasterization_state_create_info.has_value())
+            {
+                auto message = "Rasterization-State not set. (set_rasterization)";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
+            if (!m_multisample_state_create_info.has_value())
+            {
+                auto message = "Multisample-State not set. (set_multisample)";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
+            if (m_shader_stage_create_infos.empty())
+            {
+                auto message = "No shaders are present. (add_shader)";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
             // Viewport State
             VkPipelineViewportStateCreateInfo viewport_state_create_info = { };
             viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
             viewport_state_create_info.pNext = nullptr;
             viewport_state_create_info.viewportCount = 1;
-            viewport_state_create_info.pViewports = &viewport;
+            viewport_state_create_info.pViewports = &m_viewport;
             viewport_state_create_info.scissorCount = 1;
-            viewport_state_create_info.pScissors = &scissors;
+            viewport_state_create_info.pScissors = &m_scissors;
 
             // Color Blend State
             VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = { };
@@ -171,27 +190,29 @@ namespace vengine::vulkan_utils
             pipelineInfo.pNext = nullptr;
             pipelineInfo.stageCount = m_shader_stage_create_infos.size();
             pipelineInfo.pStages = m_shader_stage_create_infos.data();
-            pipelineInfo.pVertexInputState = &m_vertex_input_state_create_info;
-            pipelineInfo.pInputAssemblyState = &m_input_assembly_state_create_info;
+            pipelineInfo.pVertexInputState = &m_vertex_input_state_create_info.value();
+            pipelineInfo.pInputAssemblyState = &m_input_assembly_state_create_info.value();
             pipelineInfo.pViewportState = &viewport_state_create_info;
-            pipelineInfo.pRasterizationState = &m_rasterization_state_create_info;
-            pipelineInfo.pMultisampleState = &m_multisample_state_create_info;
+            pipelineInfo.pRasterizationState = &m_rasterization_state_create_info.value();
+            pipelineInfo.pMultisampleState = &m_multisample_state_create_info.value();
             pipelineInfo.pColorBlendState = &color_blend_state_create_info;
-            pipelineInfo.layout = m_layout_create_info;
+            pipelineInfo.layout = m_pipeline_layout;
             pipelineInfo.renderPass = m_render_pass;
             pipelineInfo.subpass = 0;
             pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
             //it's easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
-            VkPipeline newPipeline;
-            if (vkCreateGraphicsPipelines(
-                    device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) {
-                std::cout << "failed to create pipeline\n";
-                return VK_NULL_HANDLE; // failed to create graphics pipeline
+            VkPipeline pipeline;
+            auto pipeline_creation_result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+            if (pipeline_creation_result == VK_SUCCESS)
+            {
+                return { pipeline };
             }
             else
             {
-                return newPipeline;
+                auto message = std::string("Failed to build pipeline (").append(stringify::data(pipeline_creation_result)).append(")");
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return { pipeline_creation_result };
             }
         }
     };

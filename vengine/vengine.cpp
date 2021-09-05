@@ -2,12 +2,15 @@
 // Created by marco.silipo on 31.08.2021.
 //
 #include "vengine.h"
+#include "log.hpp"
 #include "VkBootstrap.h"
+#include "vulkan-utils/stringify.hpp"
 
 #include <GLFW/glfw3.h>
 
 #include <sstream>
 
+using namespace vengine::vulkan_utils;
 
 template<typename T>
 inline std::string VKB_ERROR(std::string_view message, T error)
@@ -21,93 +24,10 @@ template<>
 inline std::string VKB_ERROR<VkResult>(std::string_view message, VkResult error)
 {
     std::stringstream sstream;
-    switch (error)
-    {
-        default: sstream << "NOT AVAILABLE";
-            break;
-        case VK_SUCCESS: sstream << "VK_SUCCESS";
-            break;
-        case VK_NOT_READY: sstream << "VK_NOT_READY";
-            break;
-        case VK_TIMEOUT: sstream << "VK_TIMEOUT";
-            break;
-        case VK_EVENT_SET: sstream << "VK_EVENT_SET";
-            break;
-        case VK_EVENT_RESET: sstream << "VK_EVENT_RESET";
-            break;
-        case VK_INCOMPLETE: sstream << "VK_INCOMPLETE";
-            break;
-        case VK_ERROR_OUT_OF_HOST_MEMORY: sstream << "VK_ERROR_OUT_OF_HOST_MEMORY";
-            break;
-        case VK_ERROR_OUT_OF_DEVICE_MEMORY: sstream << "VK_ERROR_OUT_OF_DEVICE_MEMORY";
-            break;
-        case VK_ERROR_INITIALIZATION_FAILED: sstream << "VK_ERROR_INITIALIZATION_FAILED";
-            break;
-        case VK_ERROR_DEVICE_LOST: sstream << "VK_ERROR_DEVICE_LOST";
-            break;
-        case VK_ERROR_MEMORY_MAP_FAILED: sstream << "VK_ERROR_MEMORY_MAP_FAILED";
-            break;
-        case VK_ERROR_LAYER_NOT_PRESENT: sstream << "VK_ERROR_LAYER_NOT_PRESENT";
-            break;
-        case VK_ERROR_EXTENSION_NOT_PRESENT: sstream << "VK_ERROR_EXTENSION_NOT_PRESENT";
-            break;
-        case VK_ERROR_FEATURE_NOT_PRESENT: sstream << "VK_ERROR_FEATURE_NOT_PRESENT";
-            break;
-        case VK_ERROR_INCOMPATIBLE_DRIVER: sstream << "VK_ERROR_INCOMPATIBLE_DRIVER";
-            break;
-        case VK_ERROR_TOO_MANY_OBJECTS: sstream << "VK_ERROR_TOO_MANY_OBJECTS";
-            break;
-        case VK_ERROR_FORMAT_NOT_SUPPORTED: sstream << "VK_ERROR_FORMAT_NOT_SUPPORTED";
-            break;
-        case VK_ERROR_FRAGMENTED_POOL: sstream << "VK_ERROR_FRAGMENTED_POOL";
-            break;
-        case VK_ERROR_UNKNOWN: sstream << "VK_ERROR_UNKNOWN";
-            break;
-        case VK_ERROR_OUT_OF_POOL_MEMORY: sstream << "VK_ERROR_OUT_OF_POOL_MEMORY";
-            break;
-        case VK_ERROR_INVALID_EXTERNAL_HANDLE: sstream << "VK_ERROR_INVALID_EXTERNAL_HANDLE";
-            break;
-        case VK_ERROR_FRAGMENTATION: sstream << "VK_ERROR_FRAGMENTATION";
-            break;
-        case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS: sstream << "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS";
-            break;
-        case VK_ERROR_SURFACE_LOST_KHR: sstream << "VK_ERROR_SURFACE_LOST_KHR";
-            break;
-        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: sstream << "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
-            break;
-        case VK_SUBOPTIMAL_KHR: sstream << "VK_SUBOPTIMAL_KHR";
-            break;
-        case VK_ERROR_OUT_OF_DATE_KHR: sstream << "VK_ERROR_OUT_OF_DATE_KHR";
-            break;
-        case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: sstream << "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
-            break;
-        case VK_ERROR_VALIDATION_FAILED_EXT: sstream << "VK_ERROR_VALIDATION_FAILED_EXT";
-            break;
-        case VK_ERROR_INVALID_SHADER_NV: sstream << "VK_ERROR_INVALID_SHADER_NV";
-            break;
-        case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT:
-            sstream
-                    << "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
-            break;
-        case VK_ERROR_NOT_PERMITTED_EXT: sstream << "VK_ERROR_NOT_PERMITTED_EXT";
-            break;
-        case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: sstream << "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
-            break;
-        case VK_THREAD_IDLE_KHR: sstream << "VK_THREAD_IDLE_KHR";
-            break;
-        case VK_THREAD_DONE_KHR: sstream << "VK_THREAD_DONE_KHR";
-            break;
-        case VK_OPERATION_DEFERRED_KHR: sstream << "VK_OPERATION_DEFERRED_KHR";
-            break;
-        case VK_OPERATION_NOT_DEFERRED_KHR: sstream << "VK_OPERATION_NOT_DEFERRED_KHR";
-            break;
-        case VK_PIPELINE_COMPILE_REQUIRED_EXT: sstream << "VK_PIPELINE_COMPILE_REQUIRED_EXT";
-            break;
-        case VK_RESULT_MAX_ENUM: sstream << "VK_RESULT_MAX_ENUM";
-            break;
-    }
-    sstream << " (" << std::uppercase << std::hex << static_cast<uint64_t>(error) << "): " << message;
-    return sstream.str();
+    sstream << stringify::data(error) << " (" << std::uppercase << std::hex << static_cast<uint64_t>(error) << "): " << message;
+    auto ret_val = sstream.str();
+    vengine::log::error("VKB_ERROR<VkResult>(std::string_view, VkResult)", ret_val);
+    return ret_val;
 }
 
 vengine::vengine::vengine()
@@ -462,6 +382,7 @@ std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer()
 {
     if (!good())
     {
+        log::error("vengine::vengine::create_command_buffer()", "Vengine instance is not good.");
         return { };
     }
 

@@ -3,6 +3,7 @@
 //
 
 #include "io.hpp"
+#include "log.hpp"
 #include <fstream>
 
 
@@ -84,21 +85,24 @@ size_t vengine::io::bom_skip_length(const char* begin, const char* end)
 {
     if (!std::filesystem::exists(path))
     {
+        vengine::log::error("vengine::io::read_file_from_disk(const std::filesystem::path&, std::vector<uint8_t>&)", "File not found.");
         return false;
     }
     if (std::filesystem::is_directory(path))
     {
+        vengine::log::error("vengine::io::read_file_from_disk(const std::filesystem::path&, std::vector<uint8_t>&)", "Cannot open directories.");
         return false;
     }
     std::ifstream file(path, std::ios::ate | std::ios::binary);
 
     if (!file.is_open())
     {
+        vengine::log::error("vengine::io::read_file_from_disk(const std::filesystem::path&, std::vector<uint8_t>&)", "Failed to open file: " + path.string());
         return false;
     }
 
     auto fileSize = file.tellg();
-    data.reserve(fileSize);
+    data.resize(fileSize);
     file.seekg(0);
     file.read(reinterpret_cast<char*>(data.data()), fileSize);
     file.close();

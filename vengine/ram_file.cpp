@@ -4,6 +4,7 @@
 
 #include "ram_file.hpp"
 #include "io.hpp"
+#include "log.hpp"
 
 std::optional<vengine::ram_file> vengine::ram_file::from_disk(const std::filesystem::path& path)
 {

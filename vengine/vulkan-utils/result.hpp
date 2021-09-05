@@ -8,6 +8,7 @@
 #include <vulkan/vulkan.h>
 
 #include <optional>
+#include <utility>
 
 namespace vengine::vulkan_utils
 {
@@ -15,11 +16,22 @@ namespace vengine::vulkan_utils
     class result
     {
         VkResult m_result;
+        std::string m_message;
         std::optional<T> m_payload;
     public:
-        result(VkResult result) : m_result(result), m_payload({}) {}
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "google-explicit-constructor"
+        [[maybe_unused]] result(VkResult result) : m_result(result), m_payload({}) {}
+        [[maybe_unused]] result(VkResult result, std::string message) : m_result(result), m_payload({}), m_message(std::move(message)) {}
+        [[maybe_unused]] result(std::string message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_payload({}), m_message(std::move(message)) {}
+        [[maybe_unused]] result(const char* message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_payload({}), m_message(message) {}
+        [[maybe_unused]] result(T payload) : m_result(VK_SUCCESS), m_payload(std::move(payload)) {}
+#pragma clang diagnostic pop
+        [[maybe_unused]] result(VkResult result, T payload) : m_result(result), m_payload(std::move(payload)) {}
+
+
         [[maybe_unused]] [[nodiscard]] bool has_value() const { return m_payload.has_value(); }
-        [[maybe_unused]] [[nodiscard]] VkResult result() const { return m_result; }
+        [[maybe_unused]] [[nodiscard]] VkResult vk_result() const { return m_result; }
         [[maybe_unused]] [[nodiscard]] T value() const { return m_payload.value(); }
     };
 }
