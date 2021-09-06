@@ -33,7 +33,7 @@ inline std::string VKB_ERROR<VkResult>(std::string_view message, VkResult error)
 vengine::vengine::vengine()
         : m_initialized(false), m_glfw_initialized(false), m_frame_counter(0), m_vulkan_surface(nullptr),
         m_vulkan_render_fence(nullptr), m_vulkan_command_pool(nullptr), m_vulkan_render_semaphore(nullptr),
-        m_vulkan_present_semaphore(nullptr), m_vulkan_render_pass(nullptr)
+        m_vulkan_present_semaphore(nullptr), m_vulkan_render_pass(nullptr), m_vma_allocator(nullptr)
 {
     glfw_window_init(800, 600, "vengine");
     if (!m_glfw_initialized)
@@ -99,6 +99,20 @@ vengine::vengine::vengine()
         return;
     }
     m_vkb_swap_chain = swap_chain_result.value();
+
+    // Create allocator
+    {
+        VmaAllocatorCreateInfo allocator_create_info = {};
+        allocator_create_info.physicalDevice = m_vkb_physical_device.physical_device;
+        allocator_create_info.device = m_vkb_device.device;
+        allocator_create_info.instance = m_vkb_instance.instance;
+        auto allocator_create_result = vmaCreateAllocator(&allocator_create_info, &m_vma_allocator);
+        if (allocator_create_result != VK_SUCCESS)
+        {
+            m_errors.push_back(VKB_ERROR("Failed to create vulkan allocator.", allocator_create_result));
+            return;
+        }
+    }
 
     // Get images
     auto swap_chain_images_result = m_vkb_swap_chain.get_images();
@@ -336,10 +350,14 @@ vengine::vengine::~vengine()
     }
     if (!m_command_buffers.empty())
     {
+        if (m_command_buffers.size() > UINT32_MAX)
+        {
+            log::warning("vengine::vengine::~vengine()", "More command buffers have been created then the vulkan api supports. Cannot destroy all.");
+        }
         vkFreeCommandBuffers(
                 m_vkb_device.device,
                 m_vulkan_command_pool,
-                m_command_buffers.size(),
+                (uint32_t)m_command_buffers.size(),
                 m_command_buffers.data());
         m_command_buffers.clear();
     }
@@ -361,6 +379,11 @@ vengine::vengine::~vengine()
     if (m_vkb_swap_chain.swapchain)
     {
         vkb::destroy_swapchain(m_vkb_swap_chain);
+    }
+    if (m_vma_allocator)
+    {
+        vmaDestroyAllocator(m_vma_allocator);
+        m_vma_allocator = nullptr;
     }
     if (m_vkb_device.device)
     {
@@ -546,7 +569,11 @@ void vengine::vengine::render()
         submit.signalSemaphoreCount = 1;
         submit.pSignalSemaphores = &m_vulkan_render_semaphore;
 
-        submit.commandBufferCount = m_command_buffers.size();
+        if (m_command_buffers.size() > UINT32_MAX)
+        {
+            log::warning("vengine::vengine::~vengine()", "More command buffers have been created then the vulkan api supports. Cannot submit all.");
+        }
+        submit.commandBufferCount = (uint32_t)m_command_buffers.size();
         submit.pCommandBuffers = m_command_buffers.data();
 
         auto queue_submit_result = vkQueueSubmit(m_vkb_graphics_queue, 1, &submit, m_vulkan_render_fence);

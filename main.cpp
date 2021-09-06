@@ -1,6 +1,7 @@
 #include "vengine/vengine.h"
 #include "vengine/vulkan-utils/pipeline_builder.hpp"
 #include "vengine/vulkan-utils/pipeline_layout_builder.hpp"
+#include "vengine/mesh.hpp"
 
 #include <iostream>
 #include <algorithm>
@@ -9,7 +10,7 @@
 #include <chrono>
 
 // Current Chapter https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Image_views
-// Current Chapter https://vkguide.dev/docs/chapter-3/triangle_mesh/
+// Current Chapter https://vkguide.dev/docs/chapter-3/push_constants/
 
 
 void glfw_error(int error_code, const char *error_message)
@@ -47,8 +48,18 @@ int main(int argc, char **argv)
             .set_vertex_input()
             .add_color_blend()
             .build().value();
+    vengine::mesh triangle_mesh = {
+                    vengine::vertex { { 1.0f, 1.0f, 0.0f }, {}, { 0.0f, 1.0f, 0.0f } },
+                    vengine::vertex { { 1.0f, 1.0f, 0.0f }, {}, { 0.0f, 1.0f, 0.0f } },
+                    vengine::vertex { { 1.0f, 1.0f, 0.0f }, {}, { 0.0f, 1.0f, 0.0f } },
+            };
+    triangle_mesh.upload(engine.allocator());
     engine.on_render_pass.subscribe([&](auto& source, auto& args) {
         vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &triangle_mesh.vertex_buffer.buffer, &offset);
+
         vkCmdDraw(cmd_buffer, 3, 1, 0, 0);
     });
 
@@ -73,6 +84,7 @@ int main(int argc, char **argv)
                 old_fps_count = frame_count;
             }
         }
+        triangle_mesh.vertex_buffer.destroy();
     }
     catch (const std::exception &e)
     {

@@ -165,6 +165,18 @@ namespace vengine::vulkan_utils
                 log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
                 return message;
             }
+            if (m_shader_stage_create_infos.size() > UINT32_MAX)
+            {
+                auto message = "More shaders have been pushed then vulkan can handle.";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
+            if (m_color_blend_attachment_states.size() > UINT32_MAX)
+            {
+                auto message = "More color blending modes have been pushed then vulkan can handle.";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
             // Viewport State
             VkPipelineViewportStateCreateInfo viewport_state_create_info = { };
             viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -180,7 +192,7 @@ namespace vengine::vulkan_utils
             color_blend_state_create_info.pNext = nullptr;
             color_blend_state_create_info.logicOpEnable = VK_FALSE;
             color_blend_state_create_info.logicOp = VK_LOGIC_OP_COPY;
-            color_blend_state_create_info.attachmentCount = m_color_blend_attachment_states.size();
+            color_blend_state_create_info.attachmentCount = (uint32_t)m_color_blend_attachment_states.size();
             color_blend_state_create_info.pAttachments = m_color_blend_attachment_states.data();
 
 
@@ -188,7 +200,7 @@ namespace vengine::vulkan_utils
             VkGraphicsPipelineCreateInfo pipelineInfo = {};
             pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
             pipelineInfo.pNext = nullptr;
-            pipelineInfo.stageCount = m_shader_stage_create_infos.size();
+            pipelineInfo.stageCount = (uint32_t)m_shader_stage_create_infos.size();
             pipelineInfo.pStages = m_shader_stage_create_infos.data();
             pipelineInfo.pVertexInputState = &m_vertex_input_state_create_info.value();
             pipelineInfo.pInputAssemblyState = &m_input_assembly_state_create_info.value();

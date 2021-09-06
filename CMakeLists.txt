@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD 20)
 # SUBDIRECTORIES #
 ##################
 add_subdirectory(submodules/vk-bootstrap)
+add_subdirectory(submodules/VulkanMemoryAllocator)
 
 
 ################
@@ -18,10 +19,27 @@ find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 
-add_executable(game-proj vengine/vengine.h vengine/event_source.hpp vengine/vengine.cpp vengine/ram_file.cpp vengine/ram_file.hpp vengine/io.hpp vengine/io.cpp vengine/vulkan-utils/pipeline_builder.hpp vengine/vulkan-utils/result.hpp vengine/log.hpp vengine/log.cpp vengine/vulkan-utils/stringify.hpp)
+add_executable(game-proj
+        vengine/vengine.h
+        vengine/event_source.hpp
+        vengine/vengine.cpp
+        vengine/ram_file.cpp
+        vengine/ram_file.hpp
+        vengine/io.hpp
+        vengine/io.cpp
+        vengine/vulkan-utils/pipeline_builder.hpp
+        vengine/vulkan-utils/result.hpp
+        vengine/log.hpp
+        vengine/log.cpp
+        vengine/vulkan-utils/stringify.hpp
+        vengine/mesh.cpp
+        vengine/mesh.hpp
+        vengine/allocated_buffer.hpp
+        vengine/allocated_buffer.cpp)
 target_sources(game-proj PRIVATE main.cpp)
 target_compile_definitions(game-proj PUBLIC GLFW_INCLUDE_VULKAN)
 target_link_libraries(game-proj glfw)
 target_link_libraries(game-proj glm::glm)
 target_link_libraries(game-proj Vulkan::Vulkan)
 target_link_libraries(game-proj vk-bootstrap::vk-bootstrap)
+target_link_libraries(game-proj VulkanMemoryAllocator)

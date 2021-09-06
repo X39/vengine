@@ -8,6 +8,7 @@
 #include "event_source.hpp"
 #include "ram_file.hpp"
 #include "VkBootstrap.h"
+#include "vk_mem_alloc.h"
 
 #include <vector>
 #include <optional>
@@ -117,6 +118,7 @@ namespace vengine
         VkSemaphore m_vulkan_present_semaphore { };
         VkSemaphore m_vulkan_render_semaphore { };
         VkFence m_vulkan_render_fence { };
+        VmaAllocator m_vma_allocator;
         std::vector<VkShaderModule> m_shader_modules;
         std::vector<VkCommandBuffer> m_command_buffers;
         std::vector<VkImage> m_swap_chain_images;
@@ -167,6 +169,11 @@ namespace vengine
         [[maybe_unused]] [[nodiscard]] VkRenderPass vulkan_render_pass() const
         {
             return m_vulkan_render_pass;
+        }
+
+        [[maybe_unused]] [[nodiscard]] VmaAllocator allocator() const
+        {
+            return m_vma_allocator;
         }
 
         [[maybe_unused]] [[nodiscard]] VkViewport vulkan_default_viewport() const
