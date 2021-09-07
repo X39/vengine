@@ -12,7 +12,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 // Current Chapter https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Image_views
-// Current Chapter https://vkguide.dev/docs/chapter-3/obj_loading/
+// Current Chapter https://vkguide.dev/docs/chapter-3/depth_buffer/
 
 
 void glfw_error(int error_code, const char *error_message)
@@ -59,12 +59,16 @@ int main(int argc, char **argv)
                     vengine::vertex { {  0.0f, -1.0f, 0.0f }, {}, { 0.0f, 1.0f, 0.0f } },
             };
     triangle_mesh.upload(engine.allocator());
+    vengine::mesh monkey_mesh = vengine::mesh::from_obj(
+            vengine::ram_file::from_disk("assets/monkey_smooth.obj").value(),
+            vengine::ram_file::from_disk("assets/monkey_smooth.mtl").value()).value();
+    monkey_mesh.upload(engine.allocator());
     engine.on_render_pass.subscribe([&](auto& source, auto& args) {
         vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd_buffer, 0, 1,
-                &triangle_mesh.vertex_buffer.buffer, &offset);
+                &monkey_mesh.vertex_buffer.buffer, &offset);
         // Make a model view matrix for rendering the object
         // Camera position
         glm::vec3 camPos = { 0.f,0.f,-2.f };
@@ -97,7 +101,7 @@ int main(int argc, char **argv)
                 sizeof(vengine::mesh::push_constant),
                 &constants);
 
-        vkCmdDraw(cmd_buffer, (uint32_t)triangle_mesh.size(), 1, 0, 0);
+        vkCmdDraw(cmd_buffer, (uint32_t)monkey_mesh.size(), 1, 0, 0);
     });
 
     bool alive = true;
@@ -122,6 +126,7 @@ int main(int argc, char **argv)
             }
         }
         triangle_mesh.vertex_buffer.destroy();
+        monkey_mesh.vertex_buffer.destroy();
     }
     catch (const std::exception &e)
     {

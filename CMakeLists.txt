@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 20)
 ##################
 add_subdirectory(submodules/vk-bootstrap)
 add_subdirectory(submodules/VulkanMemoryAllocator)
+add_subdirectory(submodules/tinyobjloader)
 
 
 ################
@@ -43,3 +44,4 @@ target_link_libraries(game-proj glm::glm)
 target_link_libraries(game-proj Vulkan::Vulkan)
 target_link_libraries(game-proj vk-bootstrap::vk-bootstrap)
 target_link_libraries(game-proj VulkanMemoryAllocator)
+target_link_libraries(game-proj tinyobjloader)

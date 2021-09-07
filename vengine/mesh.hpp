@@ -5,12 +5,14 @@
 #ifndef GAME_PROJ_MESH_HPP
 #define GAME_PROJ_MESH_HPP
 
+#include "allocated_buffer.hpp"
+#include "ram_file.hpp"
+
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 #include <vector>
 #include "vk_mem_alloc.h"
-#include "allocated_buffer.hpp"
 
 namespace vengine
 {
@@ -86,8 +88,9 @@ namespace vengine
         mesh() = default;
         mesh(std::initializer_list<vertex> vertexes) : vertices(vertexes.begin(), vertexes.end()) {}
 
-        void upload(VmaAllocator allocator);
 
+        void upload(VmaAllocator allocator);
+        [[nodiscard]] static std::optional<mesh> from_obj(const ram_file& obj_file, const ram_file& mtl_file);
         [[nodiscard]] size_t size() const { return vertices.size() * sizeof(vertex); }
     };
 }

@@ -50,9 +50,12 @@ std::fstream& vengine::log::log_file()
     {
         std::string file_path;
 #if WIN32
-        const char* program_data = std::getenv("programdata");
-        if (program_data)
+        size_t buffer_size;
+        char* buffer;
+        if (_dupenv_s(&buffer, &buffer_size, "programdata") != -1)
         {
+            std::string program_data(buffer, buffer_size);
+            free(buffer);
             std::filesystem::path p(program_data);
             p /= "vengine";
             std::filesystem::create_directories(p);
