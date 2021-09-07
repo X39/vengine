@@ -6,6 +6,8 @@
 #define GAME_PROJ_MESH_HPP
 
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+#include <glm/mat4x4.hpp>
 #include <vector>
 #include "vk_mem_alloc.h"
 #include "allocated_buffer.hpp"
@@ -70,6 +72,13 @@ namespace vengine
 #pragma pack(pop)
 
     struct mesh {
+#pragma pack(push, 1)
+        struct push_constant
+        {
+            glm::vec4 data;
+            glm::mat4 matrix;
+        };
+#pragma pack(pop)
         std::vector<vertex> vertices;
 
         allocated_buffer vertex_buffer;

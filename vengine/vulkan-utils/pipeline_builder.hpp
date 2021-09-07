@@ -22,12 +22,13 @@ namespace vengine::vulkan_utils
         VkRect2D m_scissors;
         VkPipelineLayout m_pipeline_layout;
         std::vector<VkPipelineShaderStageCreateInfo> m_shader_stage_create_infos;
-        std::optional<VkPipelineVertexInputStateCreateInfo> m_vertex_input_state_create_info;
         std::optional<VkPipelineInputAssemblyStateCreateInfo> m_input_assembly_state_create_info;
         std::optional<VkPipelineRasterizationStateCreateInfo> m_rasterization_state_create_info;
         std::optional<VkPipelineMultisampleStateCreateInfo> m_multisample_state_create_info;
-        std::vector<VkPipelineColorBlendAttachmentState> m_color_blend_attachment_states;
         std::optional<VkPipelineLayoutCreateInfo> m_layout_create_info;
+        std::vector<VkPipelineColorBlendAttachmentState> m_color_blend_attachment_states;
+        std::vector<VkVertexInputBindingDescription> m_vertex_input_binding_descriptions;
+        std::vector<VkVertexInputAttributeDescription> m_vertex_input_attribute_descriptions;
     public:
         pipeline_builder(VkDevice device, VkRenderPass render_pass, VkViewport viewport, VkRect2D scissors, VkPipelineLayout pipeline_layout)
                 : m_device(device), m_render_pass(render_pass), m_viewport(viewport), m_scissors(scissors), m_pipeline_layout(pipeline_layout)
@@ -49,16 +50,31 @@ namespace vengine::vulkan_utils
             return *this;
         }
 
-        pipeline_builder &set_vertex_input()
-        {
-            VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = { };
-            vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-            vertex_input_state_create_info.pNext = nullptr;
 
-            // Unused as of now so this can be left at 0.
-            vertex_input_state_create_info.vertexBindingDescriptionCount = 0;
-            vertex_input_state_create_info.vertexAttributeDescriptionCount = 0;
-            m_vertex_input_state_create_info = vertex_input_state_create_info;
+        pipeline_builder &add_vertex_input_binding_descriptions(std::vector<VkVertexInputBindingDescription> vertex_input_binding_descriptions)
+        {
+            for(auto& vertex_input_binding_description : vertex_input_binding_descriptions)
+            {
+                m_vertex_input_binding_descriptions.push_back(vertex_input_binding_description);
+            }
+            return *this;
+        }
+        pipeline_builder &add_vertex_input_attribute_descriptions(std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions)
+        {
+            for(auto& vertex_input_attribute_description : vertex_input_attribute_descriptions)
+            {
+                m_vertex_input_attribute_descriptions.push_back(vertex_input_attribute_description);
+            }
+            return *this;
+        }
+        pipeline_builder &add_vertex_input_binding_description(VkVertexInputBindingDescription vertex_input_binding_description)
+        {
+            m_vertex_input_binding_descriptions.push_back(vertex_input_binding_description);
+            return *this;
+        }
+        pipeline_builder &add_vertex_input_attribute_description(VkVertexInputAttributeDescription vertex_input_attribute_description)
+        {
+            m_vertex_input_attribute_descriptions.push_back(vertex_input_attribute_description);
             return *this;
         }
 
@@ -135,12 +151,6 @@ namespace vengine::vulkan_utils
 
         result<VkPipeline> build()
         {
-            if (!m_vertex_input_state_create_info.has_value())
-            {
-                auto message = "Vertex-Input-State not set. (set_vertex_input)";
-                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
-                return message;
-            }
             if (!m_input_assembly_state_create_info.has_value())
             {
                 auto message = "Input-Assembly-State not set. (set_input_assembly)";
@@ -177,6 +187,29 @@ namespace vengine::vulkan_utils
                 log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
                 return message;
             }
+            if (m_vertex_input_attribute_descriptions.size() > UINT32_MAX)
+            {
+                auto message = "More color input attribute descriptions have been pushed then vulkan can handle.";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
+            if (m_vertex_input_binding_descriptions.size() > UINT32_MAX)
+            {
+                auto message = "More color vertex input binding descriptions have been pushed then vulkan can handle.";
+                log::error("vengine::vulkan_utils::pipeline_builder::build()", message);
+                return message;
+            }
+
+            // Vertex Input State
+            VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = { };
+            vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+            vertex_input_state_create_info.pNext = nullptr;
+
+            vertex_input_state_create_info.pVertexBindingDescriptions = m_vertex_input_binding_descriptions.data();
+            vertex_input_state_create_info.vertexBindingDescriptionCount = (uint32_t)m_vertex_input_binding_descriptions.size();
+            vertex_input_state_create_info.pVertexAttributeDescriptions = m_vertex_input_attribute_descriptions.data();
+            vertex_input_state_create_info.vertexAttributeDescriptionCount = (uint32_t)m_vertex_input_attribute_descriptions.size();
+
             // Viewport State
             VkPipelineViewportStateCreateInfo viewport_state_create_info = { };
             viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -202,7 +235,7 @@ namespace vengine::vulkan_utils
             pipelineInfo.pNext = nullptr;
             pipelineInfo.stageCount = (uint32_t)m_shader_stage_create_infos.size();
             pipelineInfo.pStages = m_shader_stage_create_infos.data();
-            pipelineInfo.pVertexInputState = &m_vertex_input_state_create_info.value();
+            pipelineInfo.pVertexInputState = &vertex_input_state_create_info;
             pipelineInfo.pInputAssemblyState = &m_input_assembly_state_create_info.value();
             pipelineInfo.pViewportState = &viewport_state_create_info;
             pipelineInfo.pRasterizationState = &m_rasterization_state_create_info.value();
