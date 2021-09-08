@@ -11,4 +11,7 @@ void vengine::allocated_buffer::destroy()
         return;
     }
     vmaDestroyBuffer(allocator, buffer, allocation);
+    allocator = nullptr;
+    buffer = nullptr;
+    allocation = nullptr;
 }

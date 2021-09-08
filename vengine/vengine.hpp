@@ -2,13 +2,14 @@
 // Created by marco.silipo on 31.08.2021.
 //
 
-#ifndef GAME_PROJ_VENGINE_H
-#define GAME_PROJ_VENGINE_H
+#ifndef GAME_PROJ_VENGINE_HPP
+#define GAME_PROJ_VENGINE_HPP
 
 #include "event_source.hpp"
 #include "ram_file.hpp"
 #include "VkBootstrap.h"
 #include "vk_mem_alloc.h"
+#include "allocated_image.hpp"
 
 #include <vector>
 #include <optional>
@@ -125,6 +126,10 @@ namespace vengine
         std::vector<VkImageView> m_swap_chain_image_views;
         std::vector<VkFramebuffer> m_frame_buffers;
 
+        VkFormat m_depths_format;
+        allocated_image m_depth_image;
+        VkImageView m_depths_image_view;
+
 
         std::vector<std::string> m_errors;
     public:
@@ -203,4 +208,4 @@ namespace vengine
     };
 }
 
-#endif //GAME_PROJ_VENGINE_H
+#endif //GAME_PROJ_VENGINE_HPP

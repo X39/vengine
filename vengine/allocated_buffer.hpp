@@ -15,7 +15,7 @@ namespace vengine
         allocated_buffer() : buffer(nullptr), allocation(nullptr), allocator(nullptr) {}
         explicit allocated_buffer(VmaAllocator allocator) : buffer(nullptr), allocation(nullptr), allocator(allocator) {}
 
-        [[nodiscard]] bool uploaded() const { return buffer || allocator || allocation;}
+        [[nodiscard]] bool uploaded() const { return buffer || allocator || allocation; }
         void destroy();
     };
 }

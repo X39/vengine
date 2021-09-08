@@ -9,6 +9,8 @@
 
 #include <optional>
 #include <utility>
+#include <string>
+#include <string_view>
 
 namespace vengine::vulkan_utils
 {
@@ -33,6 +35,9 @@ namespace vengine::vulkan_utils
         [[maybe_unused]] [[nodiscard]] bool has_value() const { return m_payload.has_value(); }
         [[maybe_unused]] [[nodiscard]] VkResult vk_result() const { return m_result; }
         [[maybe_unused]] [[nodiscard]] T value() const { return m_payload.value(); }
+        [[maybe_unused]] [[nodiscard]] std::string_view message() const { return m_message; }
+
+        operator bool() const { return m_result == VK_SUCCESS; } // NOLINT(google-explicit-constructor)
     };
 }
 

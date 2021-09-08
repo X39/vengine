@@ -1,10 +1,13 @@
 //
 // Created by marco.silipo on 31.08.2021.
 //
-#include "vengine.h"
+#include "vengine.hpp"
 #include "log.hpp"
 #include "VkBootstrap.h"
 #include "vulkan-utils/stringify.hpp"
+#include "vulkan-utils/image_builder.hpp"
+#include "vulkan-utils/image_view_builder.hpp"
+#include "vulkan-utils/render_pass_builder.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -20,6 +23,15 @@ inline std::string VKB_ERROR(std::string_view message, T error)
     return sstream.str();
 }
 
+template<typename T>
+inline std::string VKB_ERROR(std::string_view message, result<T> error)
+{
+    std::stringstream sstream;
+    sstream << stringify::data(error.vk_result()) << " (" << std::uppercase << std::hex << static_cast<uint64_t>(error.vk_result()) << ") - " << error.message() << ": " << message;
+    auto ret_val = sstream.str();
+    vengine::log::error("VKB_ERROR<VkResult>(std::string_view, VkResult)", ret_val);
+    return ret_val;
+}
 template<>
 inline std::string VKB_ERROR<VkResult>(std::string_view message, VkResult error)
 {
@@ -88,7 +100,7 @@ vengine::vengine::vengine()
     }
     m_vkb_device = device_result.value();
 
-    // Create logical device
+    // Create swap chain
     auto
             swap_chain_result
             = vkb::SwapchainBuilder { m_vkb_device }.set_desired_format({ .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
@@ -113,6 +125,37 @@ vengine::vengine::vengine()
             return;
         }
     }
+
+
+    // Create Depths image
+    m_depths_format = VK_FORMAT_D32_SFLOAT;
+    auto depths_image_result = vulkan_utils::image_builder(m_vma_allocator, {m_vkb_swap_chain.extent.width, m_vkb_swap_chain.extent.height, 1})
+            .set_memory_usage(VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY)
+            .set_image_usage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            .set_memory_property_flags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+            .set_format(m_depths_format)
+            .build();
+    if (!depths_image_result)
+    {
+        m_errors.push_back(VKB_ERROR("Failed to create depths image.", depths_image_result));
+        return;
+    }
+    m_depth_image = depths_image_result.value();
+
+    // Create Depths image view
+    auto depths_image_view_result = vulkan_utils::image_view_builder(m_vkb_device.device, m_depth_image.image)
+            .set_memory_usage(VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY)
+            .set_image_usage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            .set_memory_property_flags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+            .set_format(m_depths_format)
+            .set_image_aspect(VK_IMAGE_ASPECT_DEPTH_BIT)
+            .build();
+    if (!depths_image_view_result)
+    {
+        m_errors.push_back(VKB_ERROR("Failed to create depths image view.", depths_image_view_result));
+        return;
+    }
+    m_depths_image_view = depths_image_view_result.value();
 
     // Get images
     auto swap_chain_images_result = m_vkb_swap_chain.get_images();
@@ -174,46 +217,51 @@ vengine::vengine::vengine()
 
     // Create render pass
     {
-        VkAttachmentDescription color_attachment = { };
-        color_attachment.format = m_vkb_swap_chain.image_format;
-        color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
         VkAttachmentReference color_attachment_ref = { };
         color_attachment_ref.attachment = 0;
         color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+        VkAttachmentReference depth_attachment_ref = {};
+        depth_attachment_ref.attachment = 1;
+        depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+
         VkSubpassDescription sub_pass_description = { };
         sub_pass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         sub_pass_description.colorAttachmentCount = 1;
         sub_pass_description.pColorAttachments = &color_attachment_ref;
+        sub_pass_description.pDepthStencilAttachment = &depth_attachment_ref;
 
-        VkRenderPassCreateInfo render_pass_info = { };
-        render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-
-        render_pass_info.attachmentCount = 1;
-        render_pass_info.pAttachments = &color_attachment;
-
-        render_pass_info.subpassCount = 1;
-        render_pass_info.pSubpasses = &sub_pass_description;
-
-
-        auto
-                render_pass_result = vkCreateRenderPass(
-                m_vkb_device.device,
-                &render_pass_info,
-                nullptr,
-                &m_vulkan_render_pass);
-        if (render_pass_result != VK_SUCCESS)
+        auto render_pass_create_result = vulkan_utils::render_pass_builder(m_vkb_device.device)
+                .add_attachment_description(
+                        0,
+                        m_vkb_swap_chain.image_format,
+                        VK_SAMPLE_COUNT_1_BIT,
+                        VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        VK_ATTACHMENT_STORE_OP_STORE,
+                        VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        VK_IMAGE_LAYOUT_UNDEFINED,
+                        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+                .add_attachment_description(
+                        0,
+                        m_depths_format,
+                        VK_SAMPLE_COUNT_1_BIT,
+                        VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        VK_ATTACHMENT_STORE_OP_STORE,
+                        VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        VK_IMAGE_LAYOUT_UNDEFINED,
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                .add_sub_pass_description(sub_pass_description)
+                .build();
+        if (!render_pass_create_result)
         {
-            m_errors.push_back(VKB_ERROR("Failed to create render pass.", render_pass_result));
+            m_errors.push_back(VKB_ERROR("Failed to create render pass.", render_pass_create_result));
             return;
         }
+        m_vulkan_render_pass = render_pass_create_result.value();
     }
 
     // Create frame buffers
@@ -223,7 +271,6 @@ vengine::vengine::vengine()
         framebuffer_create_info.pNext = nullptr;
 
         framebuffer_create_info.renderPass = m_vulkan_render_pass;
-        framebuffer_create_info.attachmentCount = 1;
         framebuffer_create_info.width = m_vkb_swap_chain.extent.width;
         framebuffer_create_info.height = m_vkb_swap_chain.extent.height;
         framebuffer_create_info.layers = 1;
@@ -231,7 +278,9 @@ vengine::vengine::vengine()
         m_frame_buffers = std::vector<VkFramebuffer>(m_swap_chain_image_views.size(), nullptr);
         for (size_t i = 0; i < m_swap_chain_image_views.size(); i++)
         {
-            framebuffer_create_info.pAttachments = &m_swap_chain_image_views[i];
+            auto attachments = std::array{ m_swap_chain_image_views[i], m_depths_image_view };
+            framebuffer_create_info.attachmentCount = (uint32_t)attachments.size();
+            framebuffer_create_info.pAttachments = attachments.data();
             auto
                     create_frame_buffer_result = vkCreateFramebuffer(
                     m_vkb_device.device,
@@ -376,6 +425,17 @@ vengine::vengine::~vengine()
     //     vkDestroyImage(m_vkb_device.device, it, nullptr);
     // }
     m_swap_chain_images.clear();
+
+
+    if (m_depths_image_view)
+    {
+        vkDestroyImageView(m_vkb_device.device, m_depths_image_view, nullptr);
+        m_depths_image_view = nullptr;
+    }
+    if (m_depth_image.uploaded())
+    {
+        m_depth_image.destroy();
+    }
     if (m_vkb_swap_chain.swapchain)
     {
         vkb::destroy_swapchain(m_vkb_swap_chain);
@@ -511,8 +571,14 @@ void vengine::vengine::render()
 
         // Begin render pass
         {
-            VkClearValue clearValue;
-            clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+            VkClearValue color_clear_value = {};
+            color_clear_value.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+
+            VkClearValue depth_clear_value = {};
+            depth_clear_value.depthStencil.depth = 1.0f;
+
+            auto clear_values = std::array{color_clear_value, depth_clear_value};
+
 
             VkRenderPassBeginInfo render_pass_begin_info = { };
             render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -523,9 +589,8 @@ void vengine::vengine::render()
             render_pass_begin_info.renderArea.offset.y = 0;
             render_pass_begin_info.renderArea.extent = m_vkb_swap_chain.extent;
             render_pass_begin_info.framebuffer = m_frame_buffers[swap_chain_image_index];
-
-            render_pass_begin_info.clearValueCount = 1;
-            render_pass_begin_info.pClearValues = &clearValue;
+            render_pass_begin_info.clearValueCount = (uint32_t)clear_values.size();
+            render_pass_begin_info.pClearValues = clear_values.data();
 
             vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         }

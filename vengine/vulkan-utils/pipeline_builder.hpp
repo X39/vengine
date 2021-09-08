@@ -25,6 +25,7 @@ namespace vengine::vulkan_utils
         std::optional<VkPipelineInputAssemblyStateCreateInfo> m_input_assembly_state_create_info;
         std::optional<VkPipelineRasterizationStateCreateInfo> m_rasterization_state_create_info;
         std::optional<VkPipelineMultisampleStateCreateInfo> m_multisample_state_create_info;
+        std::optional<VkPipelineDepthStencilStateCreateInfo> m_pipeline_depth_stencil_state_create_info;
         std::optional<VkPipelineLayoutCreateInfo> m_layout_create_info;
         std::vector<VkPipelineColorBlendAttachmentState> m_color_blend_attachment_states;
         std::vector<VkVertexInputBindingDescription> m_vertex_input_binding_descriptions;
@@ -135,6 +136,27 @@ namespace vengine::vulkan_utils
             return *this;
         }
 
+        pipeline_builder &
+        set_pipeline_depths_stencil_state(bool depth_test, bool depths_write, VkCompareOp compare_op = VK_COMPARE_OP_ALWAYS,
+                        float min_depths_bounds = 0.0f, float max_depths_bounds = 1.0f)
+        {
+            VkPipelineDepthStencilStateCreateInfo pipeline_depth_stencil_state_create_info = { };
+            pipeline_depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+            pipeline_depth_stencil_state_create_info.pNext = nullptr;
+
+            pipeline_depth_stencil_state_create_info.depthTestEnable = depth_test ? VK_TRUE : VK_FALSE;
+            pipeline_depth_stencil_state_create_info.depthWriteEnable = depths_write ? VK_TRUE : VK_FALSE;
+            pipeline_depth_stencil_state_create_info.depthCompareOp = compare_op;
+            pipeline_depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
+            pipeline_depth_stencil_state_create_info.minDepthBounds = min_depths_bounds;
+            pipeline_depth_stencil_state_create_info.maxDepthBounds = max_depths_bounds;
+            pipeline_depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;
+
+            m_pipeline_depth_stencil_state_create_info = pipeline_depth_stencil_state_create_info;
+
+            return *this;
+        }
+
         pipeline_builder &add_color_blend()
         {
             VkPipelineColorBlendAttachmentState color_blend_attachment_state = { };
@@ -241,6 +263,7 @@ namespace vengine::vulkan_utils
             pipelineInfo.pRasterizationState = &m_rasterization_state_create_info.value();
             pipelineInfo.pMultisampleState = &m_multisample_state_create_info.value();
             pipelineInfo.pColorBlendState = &color_blend_state_create_info;
+            pipelineInfo.pDepthStencilState = m_pipeline_depth_stencil_state_create_info.has_value() ? &m_pipeline_depth_stencil_state_create_info.value() : nullptr;
             pipelineInfo.layout = m_pipeline_layout;
             pipelineInfo.renderPass = m_render_pass;
             pipelineInfo.subpass = 0;

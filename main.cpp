@@ -1,4 +1,4 @@
-#include "vengine/vengine.h"
+#include "vengine/vengine.hpp"
 #include "vengine/vulkan-utils/pipeline_builder.hpp"
 #include "vengine/vulkan-utils/pipeline_layout_builder.hpp"
 #include "vengine/mesh.hpp"
@@ -12,7 +12,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 // Current Chapter https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Image_views
-// Current Chapter https://vkguide.dev/docs/chapter-3/depth_buffer/
+// Current Chapter https://vkguide.dev/docs/chapter-3/scene_management/
 
 
 void glfw_error(int error_code, const char *error_message)
@@ -49,6 +49,7 @@ int main(int argc, char **argv)
             .set_input_assembly(VkPrimitiveTopology::VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
             .set_rasterization(VkPolygonMode::VK_POLYGON_MODE_FILL)
             .set_multisample()
+            .set_pipeline_depths_stencil_state(true, true, VK_COMPARE_OP_LESS_OR_EQUAL)
             .add_vertex_input_attribute_descriptions(vengine::vertex::get_vertex_input_description().attribute_descriptions)
             .add_vertex_input_binding_descriptions(vengine::vertex::get_vertex_input_description().binding_descriptions)
             .add_color_blend()
