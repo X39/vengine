@@ -19,6 +19,7 @@ find_package(Threads REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(EnTT REQUIRED)
 
 add_executable(game-proj
         vengine/vengine.hpp
@@ -36,7 +37,7 @@ add_executable(game-proj
         vengine/mesh.cpp
         vengine/mesh.hpp
         vengine/allocated_buffer.hpp
-        vengine/allocated_buffer.cpp vengine/allocated_image.cpp vengine/allocated_image.hpp vengine/vulkan-utils/image_builder.hpp vengine/vulkan-utils/image_view_builder.hpp vengine/vulkan-utils/render_pass_builder.hpp)
+        vengine/allocated_buffer.cpp vengine/allocated_image.cpp vengine/allocated_image.hpp vengine/vulkan-utils/image_builder.hpp vengine/vulkan-utils/image_view_builder.hpp vengine/vulkan-utils/render_pass_builder.hpp vengine/scene.cpp vengine/scene.hpp)
 target_sources(game-proj PRIVATE main.cpp)
 target_compile_definitions(game-proj PUBLIC GLFW_INCLUDE_VULKAN)
 target_link_libraries(game-proj glfw)
@@ -45,3 +46,4 @@ target_link_libraries(game-proj Vulkan::Vulkan)
 target_link_libraries(game-proj vk-bootstrap::vk-bootstrap)
 target_link_libraries(game-proj VulkanMemoryAllocator)
 target_link_libraries(game-proj tinyobjloader)
+target_link_libraries(game-proj EnTT::EnTT)
