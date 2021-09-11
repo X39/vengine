@@ -17,7 +17,7 @@
 void vengine::log::debug(std::string_view source, std::string_view message)
 {
 #if _DEBUG
-    std::cout << DEBUG_TAG << "[" << source << "] " << message << std::endl;
+    std::cout<< DEBUG_TAG << "[" << source << "] " << message << std::endl;
     log_file() << DEBUG_TAG << "[" << source << "] " << message << std::endl;
 #endif
 }
@@ -54,12 +54,12 @@ std::fstream& vengine::log::log_file()
         char* buffer;
         if (_dupenv_s(&buffer, &buffer_size, "programdata") != -1)
         {
-            std::string program_data(buffer, buffer_size);
-            free(buffer);
+            std::string program_data(buffer, buffer_size - 1 /* \0 */);
             std::filesystem::path p(program_data);
             p /= "vengine";
             std::filesystem::create_directories(p);
             file_path = (p / "log.txt").string();
+            free(buffer);
         }
         else
         {

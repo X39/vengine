@@ -37,7 +37,7 @@ add_executable(game-proj
         vengine/mesh.cpp
         vengine/mesh.hpp
         vengine/allocated_buffer.hpp
-        vengine/allocated_buffer.cpp vengine/allocated_image.cpp vengine/allocated_image.hpp vengine/vulkan-utils/image_builder.hpp vengine/vulkan-utils/image_view_builder.hpp vengine/vulkan-utils/render_pass_builder.hpp vengine/scene.cpp vengine/scene.hpp)
+        vengine/allocated_buffer.cpp vengine/allocated_image.cpp vengine/allocated_image.hpp vengine/vulkan-utils/image_builder.hpp vengine/vulkan-utils/image_view_builder.hpp vengine/vulkan-utils/render_pass_builder.hpp vengine/scene.cpp vengine/scene.hpp vengine/vulkan-utils/descriptor_set_layout_builder.hpp vengine/vulkan-utils/descriptor_pool_builder.hpp vengine/ecs/position.hpp vengine/ecs/velocity.hpp scenes/test.cpp scenes/test.hpp)
 target_sources(game-proj PRIVATE main.cpp)
 target_compile_definitions(game-proj PUBLIC GLFW_INCLUDE_VULKAN)
 target_link_libraries(game-proj glfw)

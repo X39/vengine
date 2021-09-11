@@ -103,3 +103,8 @@ std::optional<vengine::mesh> vengine::mesh::from_obj(const ram_file& obj_file, c
 
     return out_mesh;
 }
+
+void vengine::mesh::destroy()
+{
+    vertex_buffer.destroy();
+}

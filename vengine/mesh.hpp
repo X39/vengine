@@ -90,6 +90,8 @@ namespace vengine
 
 
         void upload(VmaAllocator allocator);
+        [[nodiscard]] bool uploaded() const { return vertex_buffer.uploaded(); }
+        void destroy();
         [[nodiscard]] static std::optional<mesh> from_obj(const ram_file& obj_file, const ram_file& mtl_file);
         [[nodiscard]] size_t size() const { return vertices.size() * sizeof(vertex); }
     };

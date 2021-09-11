@@ -9,10 +9,14 @@
 #include "ram_file.hpp"
 #include "VkBootstrap.h"
 #include "vk_mem_alloc.h"
+#include "allocated_buffer.hpp"
 #include "allocated_image.hpp"
 
+
+#include <glm/glm.hpp>
 #include <vector>
 #include <optional>
+#include <entt/entt.hpp>
 
 namespace vengine
 {
@@ -38,6 +42,49 @@ namespace vengine
         {
             int width;
             int height;
+        };
+
+        struct camera_data
+        {
+            glm::mat4 view;
+            glm::mat4 projection;
+            glm::mat4 view_projection;
+
+
+            void set_gpu_buffer_data(allocated_buffer buffer) const
+            {
+                void* data;
+                vmaMapMemory(buffer.allocator, buffer.allocation, &data);
+                memcpy(data, this, sizeof(camera_data));
+                vmaUnmapMemory(buffer.allocator, buffer.allocation);
+            }
+        };
+
+        struct frame_data
+        {
+            void bind_graphics_pipeline(VkCommandBuffer command_buffer, VkPipelineLayout pipeline_layout,
+                                        VkPipeline pipeline)
+            {
+                vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                vkCmdBindDescriptorSets(
+                        command_buffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        pipeline_layout,
+                        0,
+                        1,
+                        &descriptor_set,
+                        0,
+                        nullptr);
+            }
+
+            VkSemaphore present_semaphore;
+            VkSemaphore render_semaphore;
+            VkFence render_fence;
+            VkCommandPool command_pool;
+            std::vector<VkCommandBuffer> command_buffers;
+
+            allocated_buffer camera_buffer;
+            VkDescriptorSet descriptor_set;
         };
 
         [[maybe_unused]] void window_size(int width, int height)
@@ -106,6 +153,7 @@ namespace vengine
         bool m_glfw_initialized;
         bool m_initialized;
         size_t m_frame_counter;
+        size_t m_frame_data_index;
 
         vkb::Instance m_vkb_instance;
         VkSurfaceKHR m_vulkan_surface { };
@@ -114,24 +162,26 @@ namespace vengine
         vkb::Swapchain m_vkb_swap_chain;
         VkQueue m_vkb_graphics_queue;
         uint32_t m_vkb_graphics_queue_index;
-        VkCommandPool m_vulkan_command_pool { };
         VkRenderPass m_vulkan_render_pass { };
-        VkSemaphore m_vulkan_present_semaphore { };
-        VkSemaphore m_vulkan_render_semaphore { };
-        VkFence m_vulkan_render_fence { };
         VmaAllocator m_vma_allocator;
+        VkDescriptorPool m_descriptor_pool;
+        VkDescriptorSetLayout m_descriptor_set_layout;
         std::vector<VkShaderModule> m_shader_modules;
-        std::vector<VkCommandBuffer> m_command_buffers;
         std::vector<VkImage> m_swap_chain_images;
         std::vector<VkImageView> m_swap_chain_image_views;
         std::vector<VkFramebuffer> m_frame_buffers;
+        const size_t frame_data_structures_count = 2;
+        std::vector<frame_data> m_frame_data_structures;
 
         VkFormat m_depths_format;
         allocated_image m_depth_image;
         VkImageView m_depths_image_view;
+        entt::registry m_ecs;
 
 
-        std::vector<std::string> m_errors;
+        [[maybe_unused]] [[nodiscard]] std::optional<VkCommandBuffer> create_command_buffer(frame_data& frame);
+
+        [[maybe_unused]] void destroy_command_buffer(frame_data& frame, VkCommandBuffer buffer);
     public:
         vengine();
 
@@ -146,20 +196,6 @@ namespace vengine
         {
             return m_glfw_initialized && m_initialized;
         }
-
-        [[nodiscard]] std::vector<std::string> get_errors() const
-        {
-            return m_errors;
-        }
-
-        [[maybe_unused]] void clear_errors()
-        {
-            m_errors.clear();
-        }
-
-        [[maybe_unused]] [[nodiscard]] std::optional<VkCommandBuffer> create_command_buffer();
-
-        [[maybe_unused]] void destroy_command_buffer(VkCommandBuffer buffer);
 
         [[maybe_unused]] [[nodiscard]] std::optional<VkShaderModule> create_shader_module(const ram_file &file);
 
@@ -180,6 +216,8 @@ namespace vengine
         {
             return m_vma_allocator;
         }
+
+        frame_data& current_frame_data() { return m_frame_data_structures[m_frame_data_index]; }
 
         [[maybe_unused]] [[nodiscard]] VkViewport vulkan_default_viewport() const
         {
@@ -203,8 +241,16 @@ namespace vengine
 
         void render();
 
+        [[nodiscard]] entt::registry& ecs() { return m_ecs; }
+
     public:
-        utils::event_source<vengine, utils::event_args> on_render_pass;
+        struct on_render_pass_event_args
+        {
+            frame_data current_frame_data;
+            VkCommandBuffer command_buffer;
+        };
+        using on_render_pass_event = utils::event_source<vengine, on_render_pass_event_args>;
+        on_render_pass_event on_render_pass;
     };
 }
 

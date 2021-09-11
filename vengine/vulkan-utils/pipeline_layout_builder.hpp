@@ -18,6 +18,7 @@ namespace vengine::vulkan_utils
     {
         VkDevice m_device;
         std::vector<VkPushConstantRange> m_push_constant_ranges;
+        std::vector<VkDescriptorSetLayout> m_descriptor_set_layouts;
     public:
         explicit pipeline_layout_builder(VkDevice device)
                 : m_device(device)
@@ -34,12 +35,14 @@ namespace vengine::vulkan_utils
         {
             if (size > UINT32_MAX)
             {
-                log::warning("vengine::vulkan_utils::pipeline_layout_builder::add_push_constant_range(size_t, size_t, VkShaderStageFlagBits", "Size is outside of supported range for vulkan.");
+                auto message = "Size is outside of supported range for vulkan.";
+                log::warning("vengine::vulkan_utils::pipeline_layout_builder::add_push_constant_range(size_t, size_t, VkShaderStageFlagBits)", message);
                 size = UINT32_MAX;
             }
             if (offset > UINT32_MAX)
             {
-                log::warning("vengine::vulkan_utils::pipeline_layout_builder::add_push_constant_range(size_t, size_t, VkShaderStageFlagBits", "Offset is outside of supported range for vulkan.");
+                auto message = "Offset is outside of supported range for vulkan.";
+                log::warning("vengine::vulkan_utils::pipeline_layout_builder::add_push_constant_range(size_t, size_t, VkShaderStageFlagBits)", message);
                 offset = UINT32_MAX;
             }
             VkPushConstantRange push_constant_range = {};
@@ -47,6 +50,11 @@ namespace vengine::vulkan_utils
             push_constant_range.offset = (uint32_t)offset;
             push_constant_range.stageFlags = stage_flags;
             m_push_constant_ranges.push_back(push_constant_range);
+            return *this;
+        }
+        pipeline_layout_builder& add_push_constant_range(VkDescriptorSetLayout descriptor_set_layout)
+        {
+            m_descriptor_set_layouts.push_back(descriptor_set_layout);
             return *this;
         }
 
@@ -58,13 +66,19 @@ namespace vengine::vulkan_utils
                 log::error("vengine::vulkan_utils::pipeline_layout_builder::build()", message);
                 return message;
             }
+            if (m_descriptor_set_layouts.size() > UINT32_MAX)
+            {
+                auto message = "More descriptor set layouts have been pushed then vulkan can handle.";
+                log::error("vengine::vulkan_utils::pipeline_layout_builder::build()", message);
+                return message;
+            }
             VkPipelineLayoutCreateInfo pipeline_layout_create_info{};
             pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             pipeline_layout_create_info.pNext = nullptr;
 
             pipeline_layout_create_info.flags = 0;
-            pipeline_layout_create_info.setLayoutCount = 0;
-            pipeline_layout_create_info.pSetLayouts = nullptr;
+            pipeline_layout_create_info.setLayoutCount = (uint32_t)m_descriptor_set_layouts.size();
+            pipeline_layout_create_info.pSetLayouts = m_descriptor_set_layouts.data();
             pipeline_layout_create_info.pushConstantRangeCount = (uint32_t)m_push_constant_ranges.size();
             pipeline_layout_create_info.pPushConstantRanges = m_push_constant_ranges.data();
 

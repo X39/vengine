@@ -119,18 +119,21 @@ namespace vengine::utils
             raise(*source, arg);
         }
     public:
+        using event_id = size_t;
+        static const event_id event_id_invalid = ~(size_t)0;
         event_source() : m_event_id_top(0), m_events(), m_mutex() {}
         event_source(const event_source&) = delete;
 
-        [[maybe_unused]] size_t subscribe(std::function<void(TSource&, TArg&)> func)
+        [[maybe_unused]] event_id subscribe(std::function<void(TSource&, TArg&)> func)
         {
             std::unique_lock lock(m_mutex);
             m_events.push_back({ ++m_event_id_top, func });
             return m_event_id_top;
         }
 
-        [[maybe_unused]] void unsubscribe(size_t event_id)
+        [[maybe_unused]] void unsubscribe(event_id event_id)
         {
+            if (event_id == event_id_invalid) { return; }
             std::unique_lock lock(m_mutex);
             auto it = std::find_if(m_events.begin(), m_events.end(), [event_id](const storage& storage) -> bool { return storage.id == event_id; });
             if (m_events.end() != it)
