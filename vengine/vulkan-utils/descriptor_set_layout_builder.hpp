@@ -31,13 +31,13 @@ namespace vengine::vulkan_utils
             if (binding > UINT32_MAX)
             {
                 auto message = "Binding is outside of supported range for vulkan.";
-                log::warning("vengine::vulkan_utils::descriptor_pool_builder::add_layout_binding(VkDescriptorType, size_t)", message);
+                log::warning("vengine::vulkan_utils::descriptor_pool_builder::add_layout_binding(size_t, VkDescriptorType, size_t, VkShaderStageFlags)", message);
                 binding = UINT32_MAX;
             }
             if (descriptor_count > UINT32_MAX)
             {
                 auto message = "Descriptor count is outside of supported range for vulkan.";
-                log::warning("vengine::vulkan_utils::descriptor_pool_builder::add_layout_binding(VkDescriptorType, size_t)", message);
+                log::warning("vengine::vulkan_utils::descriptor_pool_builder::add_layout_binding(size_t, VkDescriptorType, size_t, VkShaderStageFlags)", message);
                 descriptor_count = UINT32_MAX;
             }
             VkDescriptorSetLayoutBinding layout_binding;
@@ -60,7 +60,7 @@ namespace vengine::vulkan_utils
         {
             if (m_descriptor_set_layout_bindings.size() > UINT32_MAX)
             {
-                auto message = "More push constant ranges have been pushed then vulkan can handle.";
+                auto message = "More descriptor set layout bindings have been pushed then vulkan can handle.";
                 log::error("vengine::vulkan_utils::descriptor_set_layout_builder::build()", message);
                 return message;
             }

@@ -9,6 +9,7 @@
 #include "vulkan-utils/image_view_builder.hpp"
 #include "vulkan-utils/render_pass_builder.hpp"
 #include "vulkan-utils/descriptor_set_layout_builder.hpp"
+#include "vulkan-utils/descriptor_set_updater.hpp"
 #include "vulkan-utils/buffer_builder.hpp"
 #include "vulkan-utils/descriptor_pool_builder.hpp"
 
@@ -46,12 +47,6 @@ inline std::string VKB_ERROR<VkResult>(std::string_view message, VkResult error)
 }
 
 vengine::vengine::vengine()
-        : m_initialized(false),
-        m_glfw_initialized(false),
-        m_frame_counter(0),
-        m_vulkan_surface(nullptr),
-        m_vma_allocator(nullptr),
-        m_frame_data_index(0)
 {
     glfw_window_init(800, 600, "vengine");
     if (!m_glfw_initialized)
@@ -96,6 +91,9 @@ vengine::vengine::vengine()
     }
     m_vkb_physical_device = physical_device_result.value();
 
+    // Get physical device properties
+    vkGetPhysicalDeviceProperties(m_vkb_physical_device.physical_device, &m_physical_device_properties);
+
 
     // Create logical device
     auto device_result = vkb::DeviceBuilder { m_vkb_physical_device }.build();
@@ -109,6 +107,7 @@ vengine::vengine::vengine()
     // Create descriptor pool
     auto descriptor_pool_result = vulkan_utils::descriptor_pool_builder(m_vkb_device.device, 10 * frame_data_structures_count)
             .add_layout_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10)
+            .add_layout_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10)
             .build();
     if (!descriptor_pool_result)
     {
@@ -120,6 +119,7 @@ vengine::vengine::vengine()
     // Create descriptor set layout
     auto descriptor_set_layout_result = vulkan_utils::descriptor_set_layout_builder(m_vkb_device.device)
             .add_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT)
+            .add_layout_binding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
     if (!descriptor_set_layout_result)
     {
@@ -378,13 +378,13 @@ vengine::vengine::vengine()
 
 
         // Create descriptor set
-        VkDescriptorSetAllocateInfo allocInfo = {};
-        allocInfo.pNext = nullptr;
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = m_descriptor_pool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &m_descriptor_set_layout;
-        auto descriptor_sets_result = vkAllocateDescriptorSets(m_vkb_device.device, &allocInfo, &data.descriptor_set);
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
+        descriptor_set_allocate_info.pNext = nullptr;
+        descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        descriptor_set_allocate_info.descriptorPool = m_descriptor_pool;
+        descriptor_set_allocate_info.descriptorSetCount = 1;
+        descriptor_set_allocate_info.pSetLayouts = &m_descriptor_set_layout;
+        auto descriptor_sets_result = vkAllocateDescriptorSets(m_vkb_device.device, &descriptor_set_allocate_info, &data.descriptor_set);
         if (descriptor_sets_result != VK_SUCCESS)
         {
             log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create descriptor set.", descriptor_sets_result));
@@ -392,22 +392,21 @@ vengine::vengine::vengine()
         }
 
         // Bind camera buffer to descriptor set
-        VkDescriptorBufferInfo descriptor_buffer_info;
-        descriptor_buffer_info.buffer = data.camera_buffer.buffer;
-        descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = sizeof(camera_data);
-
-        VkWriteDescriptorSet write_descriptor_set = {};
-        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_set.pNext = nullptr;
-        write_descriptor_set.dstBinding = 0;
-        write_descriptor_set.dstSet = data.descriptor_set;
-        write_descriptor_set.descriptorCount = 1;
-        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
-
-        vkUpdateDescriptorSets(m_vkb_device.device, 1, &write_descriptor_set, 0, nullptr);
-
+        auto update_descriptor_set_result = vulkan_utils::descriptor_set_updater(m_vkb_device.device)
+                .add_descriptor_set(data.descriptor_set)
+                .descriptor_set_add_descriptor_buffer_info(data.camera_buffer.buffer, 0, sizeof(camera_data))
+                .descriptor_set_set_descriptor_type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .descriptor_set_build()
+                // .add_descriptor_set(data.descriptor_set)
+                // .descriptor_set_add_descriptor_buffer_info(data.camera_buffer.buffer, 1, sizeof(camera_data))
+                // .descriptor_set_set_descriptor_type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+                // .descriptor_set_build()
+                .update();
+        if (!update_descriptor_set_result)
+        {
+            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to update descriptor set.", descriptor_sets_result));
+            return;
+        }
     }
 
     // Set initialized to true
@@ -538,7 +537,7 @@ vengine::vengine::~vengine()
     glfw_window_destroy();
 }
 
-std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer(frame_data& frame)
+std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer(frame_data& frame) const
 {
     VkCommandBufferAllocateInfo cmdAllocInfo = { };
     cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -559,7 +558,7 @@ std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer(frame_dat
     return vk_command_buffer;
 }
 
-void vengine::vengine::destroy_command_buffer(frame_data& data, VkCommandBuffer buffer)
+[[maybe_unused]] void vengine::vengine::destroy_command_buffer(frame_data& data, VkCommandBuffer buffer) const
 {
     auto it = std::find(data.command_buffers.begin(), data.command_buffers.end(), buffer);
     data.command_buffers.erase(it);
@@ -820,6 +819,10 @@ void vengine::vengine::glfw_unset_window_callbacks()
     {
         return;
     }
+    glfwSetCursorPosCallback(glfw_wnd, nullptr);
+    glfwSetMouseButtonCallback(glfw_wnd, nullptr);
+    glfwSetKeyCallback(glfw_wnd, nullptr);
+    glfwSetCharCallback(glfw_wnd, nullptr);
     glfwSetWindowCloseCallback(glfw_wnd, nullptr);
     glfwSetWindowFocusCallback(glfw_wnd, nullptr);
     glfwSetWindowIconifyCallback(glfw_wnd, nullptr);
@@ -830,13 +833,81 @@ void vengine::vengine::glfw_unset_window_callbacks()
     glfwSetWindowContentScaleCallback(glfw_wnd, nullptr);
     glfwSetWindowUserPointer(glfw_wnd, nullptr);
 }
-
 void vengine::vengine::glfw_set_window_callbacks()
 {
     if (!m_window_handle)
     {
         return;
     }
+    glfwSetCursorPosCallback(
+            glfw_wnd, [](GLFWwindow *window, double x_pos, double y_pos)
+            {
+                auto user_pointer = glfwGetWindowUserPointer(window);
+                if (user_pointer)
+                {
+                    auto instance = reinterpret_cast<vengine *>(user_pointer);
+                    instance->on_mouse_move.raise(*instance, {
+                            x_pos,
+                            y_pos,
+                            x_pos - instance->on_mouse_move_old_x_pos,
+                            y_pos - instance->on_mouse_move_old_y_pos,
+                    });
+                    instance->on_mouse_move_old_x_pos = x_pos;
+                    instance->on_mouse_move_old_y_pos = y_pos;
+                }
+            });
+    glfwSetMouseButtonCallback(
+            glfw_wnd, [](GLFWwindow *window, auto button, auto action, auto key_mod)
+            {
+                auto user_pointer = glfwGetWindowUserPointer(window);
+                if (user_pointer)
+                {
+                    auto instance = reinterpret_cast<vengine *>(user_pointer);
+                    instance->on_mouse_button.raise(*instance, {
+                            static_cast<vengine::mouse_buttons>(button),
+                            static_cast<vengine::key_mods>(key_mod),
+                            static_cast<vengine::key_actions>(action),
+                    });
+                }
+            });
+    glfwSetScrollCallback(
+            glfw_wnd, [](GLFWwindow *window, auto x_offset, auto y_offset)
+            {
+                auto user_pointer = glfwGetWindowUserPointer(window);
+                if (user_pointer)
+                {
+                    auto instance = reinterpret_cast<vengine *>(user_pointer);
+                    instance->on_mouse_scroll.raise(*instance, {
+                            x_offset,
+                            y_offset,
+                    });
+                }
+            });
+    glfwSetKeyCallback(
+            glfw_wnd, [](GLFWwindow *window, auto key, auto scancode, auto action, auto key_mod)
+            {
+                auto user_pointer = glfwGetWindowUserPointer(window);
+                if (user_pointer)
+                {
+                    auto instance = reinterpret_cast<vengine *>(user_pointer);
+                    instance->on_key.raise(*instance, {
+                        static_cast<vengine::keys>(key),
+                        static_cast<vengine::key_mods>(key_mod),
+                        static_cast<vengine::key_actions>(action),
+                        scancode
+                    });
+                }
+            });
+    glfwSetCharCallback(
+            glfw_wnd, [](GLFWwindow *window, auto unicode_code_point)
+            {
+                auto user_pointer = glfwGetWindowUserPointer(window);
+                if (user_pointer)
+                {
+                    auto instance = reinterpret_cast<vengine *>(user_pointer);
+                    instance->on_text.raise(*instance, { unicode_code_point });
+                }
+            });
     glfwSetWindowCloseCallback(
             glfw_wnd, [](GLFWwindow *window)
             {

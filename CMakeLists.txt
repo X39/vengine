@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.18)
 project(game-proj)
 
 # Set C++ standard used
@@ -21,24 +21,40 @@ find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(EnTT REQUIRED)
 
-add_executable(game-proj
+add_executable(game-proj)
+target_sources(game-proj PUBLIC
+        scenes/test.hpp
         vengine/vengine.hpp
         vengine/event_source.hpp
-        vengine/vengine.cpp
-        vengine/ram_file.cpp
         vengine/ram_file.hpp
         vengine/io.hpp
-        vengine/io.cpp
-        vengine/vulkan-utils/pipeline_builder.hpp
-        vengine/vulkan-utils/result.hpp
         vengine/log.hpp
-        vengine/log.cpp
-        vengine/vulkan-utils/stringify.hpp
-        vengine/mesh.cpp
         vengine/mesh.hpp
         vengine/allocated_buffer.hpp
-        vengine/allocated_buffer.cpp vengine/allocated_image.cpp vengine/allocated_image.hpp vengine/vulkan-utils/image_builder.hpp vengine/vulkan-utils/image_view_builder.hpp vengine/vulkan-utils/render_pass_builder.hpp vengine/scene.cpp vengine/scene.hpp vengine/vulkan-utils/descriptor_set_layout_builder.hpp vengine/vulkan-utils/descriptor_pool_builder.hpp vengine/ecs/position.hpp vengine/ecs/velocity.hpp scenes/test.cpp scenes/test.hpp)
-target_sources(game-proj PRIVATE main.cpp)
+        vengine/allocated_image.hpp
+        vengine/scene.hpp
+        vengine/ecs/position.hpp
+        vengine/ecs/velocity.hpp
+        vengine/vulkan-utils/pipeline_builder.hpp
+        vengine/vulkan-utils/result.hpp
+        vengine/vulkan-utils/stringify.hpp
+        vengine/vulkan-utils/image_builder.hpp
+        vengine/vulkan-utils/image_view_builder.hpp
+        vengine/vulkan-utils/render_pass_builder.hpp
+        vengine/vulkan-utils/descriptor_set_layout_builder.hpp
+        vengine/vulkan-utils/descriptor_pool_builder.hpp
+        vengine/vulkan-utils/descriptor_set_updater.hpp)
+target_sources(game-proj PRIVATE
+        main.cpp
+        scenes/test.cpp
+        vengine/vengine.cpp
+        vengine/ram_file.cpp
+        vengine/io.cpp
+        vengine/log.cpp
+        vengine/mesh.cpp
+        vengine/allocated_buffer.cpp
+        vengine/allocated_image.cpp
+        vengine/scene.cpp)
 target_compile_definitions(game-proj PUBLIC GLFW_INCLUDE_VULKAN)
 target_link_libraries(game-proj glfw)
 target_link_libraries(game-proj glm::glm)
@@ -47,3 +63,11 @@ target_link_libraries(game-proj vk-bootstrap::vk-bootstrap)
 target_link_libraries(game-proj VulkanMemoryAllocator)
 target_link_libraries(game-proj tinyobjloader)
 target_link_libraries(game-proj EnTT::EnTT)
+
+if (MSVC)
+    # warning level 4 and all warnings as errors
+    target_compile_options(game-proj BEFORE PRIVATE /wd4068)
+    # else()
+    #     # lots of warnings and all warnings as errors
+    #     add_compile_options(-Wall -Wextra -pedantic -Werror)
+endif ()

@@ -36,7 +36,7 @@ void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args
     // Model rotation
     glm::mat4 model = glm::rotate(
             glm::mat4{ 1.0f },
-            glm::radians((float)engine().frame_count() * 0.01f),
+            glm::radians((float)engine().frame_count() * 0.005f),
             glm::vec3(0, 1, 0));
 
     // Calculate final mesh view_matrix
