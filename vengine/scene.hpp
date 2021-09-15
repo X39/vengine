@@ -6,6 +6,7 @@
 #define GAME_PROJ_SCENE_HPP
 
 #include "vengine.hpp"
+#include <entt/entt.hpp>
 
 namespace vengine
 {
@@ -13,6 +14,7 @@ namespace vengine
     {
         vengine &m_engine;
         vengine::on_render_pass_event::event_id m_on_render_pass_event_id;
+        entt::registry m_ecs{};
     protected:
         virtual void render_pass(::vengine::vengine::on_render_pass_event_args &args) = 0;
 
@@ -30,6 +32,8 @@ namespace vengine
         {
             return m_engine;
         }
+
+        [[nodiscard]] entt::registry& ecs() { return m_ecs; }
 
         void load()
         {

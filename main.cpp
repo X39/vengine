@@ -38,7 +38,8 @@ int main(int argc, char **argv)
         while (alive)
         {
             vengine::vengine::handle_pending_events();
-            engine.render();
+            auto render_result = engine.render();
+            if (!render_result) { break; }
             engine.swap_buffers();
             auto new_ts = std::chrono::system_clock::now();
             if (new_ts - old_ts > std::chrono::seconds(1))

@@ -24,6 +24,8 @@ namespace scenes
         void unload_scene() override;
     public:
         explicit test(vengine::vengine& engine) : vengine::scene(engine) {}
+
+        entt::entity m_camera;
     };
 }
 

@@ -52,7 +52,7 @@ namespace vengine::vulkan_utils
             m_push_constant_ranges.push_back(push_constant_range);
             return *this;
         }
-        pipeline_layout_builder& add_push_constant_range(VkDescriptorSetLayout descriptor_set_layout)
+        pipeline_layout_builder& add_descriptor_set_layout(VkDescriptorSetLayout descriptor_set_layout)
         {
             m_descriptor_set_layouts.push_back(descriptor_set_layout);
             return *this;

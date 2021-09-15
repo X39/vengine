@@ -11,12 +11,12 @@
 #include "vk_mem_alloc.h"
 #include "allocated_buffer.hpp"
 #include "allocated_image.hpp"
+#include "vulkan-utils/result.hpp"
 
 
 #include <glm/glm.hpp>
 #include <vector>
 #include <optional>
-#include <entt/entt.hpp>
 
 namespace vengine
 {
@@ -29,7 +29,7 @@ namespace vengine
             int height;
         };
 
-        struct camera_data
+        struct gpu_camera_data
         {
             glm::mat4 view;
             glm::mat4 projection;
@@ -40,9 +40,13 @@ namespace vengine
             {
                 void* data;
                 vmaMapMemory(buffer.allocator, buffer.allocation, &data);
-                memcpy(data, this, sizeof(camera_data));
+                memcpy(data, this, sizeof(gpu_camera_data));
                 vmaUnmapMemory(buffer.allocator, buffer.allocation);
             }
+        };
+        struct gpu_mesh_data
+        {
+            glm::mat4 matrix;
         };
 
         struct frame_data
@@ -68,7 +72,10 @@ namespace vengine
             VkCommandPool command_pool;
             std::vector<VkCommandBuffer> command_buffers;
 
+
+            const size_t mesh_buffer_size = 1000;
             allocated_buffer camera_buffer;
+            allocated_buffer mesh_buffer;
             VkDescriptorSet descriptor_set;
         };
 
@@ -422,33 +429,32 @@ namespace vengine
 #pragma endregion
     private:
         bool m_glfw_initialized{};
-        bool m_initialized;
+        bool m_initialized{};
         size_t m_frame_counter{};
         size_t m_frame_data_index{};
 
-        vkb::Instance m_vkb_instance;
+        vkb::Instance m_vkb_instance{};
         VkSurfaceKHR m_vulkan_surface { };
-        vkb::PhysicalDevice m_vkb_physical_device;
-        vkb::Device m_vkb_device;
-        vkb::Swapchain m_vkb_swap_chain;
-        VkQueue m_vkb_graphics_queue;
-        uint32_t m_vkb_graphics_queue_index;
-        VkRenderPass m_vulkan_render_pass { };
+        vkb::PhysicalDevice m_vkb_physical_device{};
+        vkb::Device m_vkb_device{};
+        vkb::Swapchain m_vkb_swap_chain{};
+        VkQueue m_vkb_graphics_queue{};
+        uint32_t m_vkb_graphics_queue_index{};
+        VkRenderPass m_vulkan_render_pass{};
         VmaAllocator m_vma_allocator{};
-        VkDescriptorPool m_descriptor_pool;
-        VkDescriptorSetLayout m_descriptor_set_layout;
+        VkDescriptorPool m_descriptor_pool{};
+        VkDescriptorSetLayout m_descriptor_set_layout{};
         VkPhysicalDeviceProperties m_physical_device_properties{};
-        std::vector<VkShaderModule> m_shader_modules;
-        std::vector<VkImage> m_swap_chain_images;
-        std::vector<VkImageView> m_swap_chain_image_views;
-        std::vector<VkFramebuffer> m_frame_buffers;
+        std::vector<VkShaderModule> m_shader_modules{};
+        std::vector<VkImage> m_swap_chain_images{};
+        std::vector<VkImageView> m_swap_chain_image_views{};
+        std::vector<VkFramebuffer> m_frame_buffers{};
         const size_t frame_data_structures_count = 2;
-        std::vector<frame_data> m_frame_data_structures;
+        std::vector<frame_data> m_frame_data_structures{};
 
-        VkFormat m_depths_format;
-        allocated_image m_depth_image;
-        VkImageView m_depths_image_view;
-        entt::registry m_ecs;
+        VkFormat m_depths_format{};
+        allocated_image m_depth_image{};
+        VkImageView m_depths_image_view{};
 
 
         [[maybe_unused]] [[nodiscard]] std::optional<VkCommandBuffer> create_command_buffer(frame_data& frame) const;
@@ -483,6 +489,10 @@ namespace vengine
         {
             return m_vulkan_render_pass;
         }
+        [[maybe_unused]] [[nodiscard]] VkDescriptorSetLayout vulkan_descriptor_set_layout() const
+        {
+            return m_descriptor_set_layout;
+        }
 
         [[maybe_unused]] [[nodiscard]] VmaAllocator allocator() const
         {
@@ -511,9 +521,7 @@ namespace vengine
             return rect2d;
         }
 
-        void render();
-
-        [[nodiscard]] entt::registry& ecs() { return m_ecs; }
+        vulkan_utils::result<void> render();
 
         [[nodiscard]] const VkPhysicalDeviceProperties& physical_device_properties() const { return m_physical_device_properties; }
 

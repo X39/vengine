@@ -21,7 +21,7 @@ find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(EnTT REQUIRED)
 
-add_executable(game-proj)
+add_executable(game-proj vengine/ecs/position.hpp)
 target_sources(game-proj PUBLIC
         scenes/test.hpp
         vengine/vengine.hpp
@@ -33,7 +33,8 @@ target_sources(game-proj PUBLIC
         vengine/allocated_buffer.hpp
         vengine/allocated_image.hpp
         vengine/scene.hpp
-        vengine/ecs/position.hpp
+        vengine/ecs/rotation.hpp
+        vengine/ecs/renderable.hpp
         vengine/ecs/velocity.hpp
         vengine/vulkan-utils/pipeline_builder.hpp
         vengine/vulkan-utils/result.hpp

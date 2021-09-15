@@ -73,6 +73,7 @@ namespace vengine::vulkan_utils
                     nullptr);
             if (create_buffer_result == VK_SUCCESS)
             {
+                result.size = m_size;
                 return { result };
             }
             else

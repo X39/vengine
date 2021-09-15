@@ -11,9 +11,7 @@ namespace vengine::ecs
 {
     struct velocity
     {
-        float x;
-        float y;
-        float z;
+        glm::vec3 data{};
     };
 }
 

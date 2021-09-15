@@ -108,6 +108,7 @@ vengine::vengine::vengine()
     auto descriptor_pool_result = vulkan_utils::descriptor_pool_builder(m_vkb_device.device, 10 * frame_data_structures_count)
             .add_layout_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10)
             .add_layout_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10)
+            .add_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10)
             .build();
     if (!descriptor_pool_result)
     {
@@ -120,6 +121,7 @@ vengine::vengine::vengine()
     auto descriptor_set_layout_result = vulkan_utils::descriptor_set_layout_builder(m_vkb_device.device)
             .add_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT)
             .add_layout_binding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .add_layout_binding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT)
             .build();
     if (!descriptor_set_layout_result)
     {
@@ -365,7 +367,7 @@ vengine::vengine::vengine()
 
         auto buffer = create_command_buffer(data);
 
-        auto camera_buffer_result = vulkan_utils::buffer_builder(m_vma_allocator, sizeof(camera_data))
+        auto camera_buffer_result = vulkan_utils::buffer_builder(m_vma_allocator, sizeof(data.camera_buffer))
                 .set_buffer_usage(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
                 .set_memory_usage(VMA_MEMORY_USAGE_CPU_TO_GPU)
                 .build();
@@ -375,6 +377,17 @@ vengine::vengine::vengine()
             return;
         }
         data.camera_buffer = camera_buffer_result.value();
+
+        auto mesh_buffer_result = vulkan_utils::buffer_builder(m_vma_allocator, sizeof(data.mesh_buffer) * data.mesh_buffer_size)
+                .set_buffer_usage(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
+                .set_memory_usage(VMA_MEMORY_USAGE_CPU_TO_GPU)
+                .build();
+        if (!mesh_buffer_result)
+        {
+            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create mesh buffer.", mesh_buffer_result));
+            return;
+        }
+        data.mesh_buffer = mesh_buffer_result.value();
 
 
         // Create descriptor set
@@ -393,14 +406,22 @@ vengine::vengine::vengine()
 
         // Bind camera buffer to descriptor set
         auto update_descriptor_set_result = vulkan_utils::descriptor_set_updater(m_vkb_device.device)
-                .add_descriptor_set(data.descriptor_set)
-                .descriptor_set_add_descriptor_buffer_info(data.camera_buffer.buffer, 0, sizeof(camera_data))
-                .descriptor_set_set_descriptor_type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
-                .descriptor_set_build()
+                .add_descriptor_set(data.descriptor_set, [&](auto& builder) {
+                    builder
+                    .add_descriptor_buffer_info(data.camera_buffer, 0)
+                    .set_binding_destination(0)
+                    .set_descriptor_type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                })
                 // .add_descriptor_set(data.descriptor_set)
-                // .descriptor_set_add_descriptor_buffer_info(data.camera_buffer.buffer, 1, sizeof(camera_data))
-                // .descriptor_set_set_descriptor_type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+                // .add_descriptor_buffer_info(data.camera_buffer.buffer, 1, sizeof(gpu_camera_data))
+                // .set_descriptor_type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
                 // .descriptor_set_build()
+                .add_descriptor_set(data.descriptor_set, [&](auto& builder) {
+                    builder
+                            .add_descriptor_buffer_info(data.mesh_buffer, 0)
+                            .set_binding_destination(2)
+                            .set_descriptor_type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+                })
                 .update();
         if (!update_descriptor_set_result)
         {
@@ -432,6 +453,10 @@ vengine::vengine::~vengine()
         if (data.camera_buffer.uploaded())
         {
             data.camera_buffer.destroy();
+        }
+        if (data.mesh_buffer.uploaded())
+        {
+            data.mesh_buffer.destroy();
         }
         if (data.render_fence)
         {
@@ -566,7 +591,7 @@ std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer(frame_dat
 }
 
 
-void vengine::vengine::render()
+vengine::vulkan_utils::result<void> vengine::vengine::render()
 {
     const size_t one_second_in_nano_seconds = 1'000'0000'000;
     // Wait for render fence
@@ -580,16 +605,18 @@ void vengine::vengine::render()
                     m_vkb_device.device, 1, &data.render_fence, true, one_second_in_nano_seconds);
             if (wait_for_fence_result != VK_SUCCESS && wait_for_fence_result != VK_TIMEOUT)
             {
-                log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to wait for render fence.", wait_for_fence_result));
-                return;
+                auto message = VKB_ERROR("Failed to wait for render fence.", wait_for_fence_result);
+                log::error("vengine::vengine::vengine()", message);
+                return { wait_for_fence_result, message };
             }
         }
         while (wait_for_fence_result == VK_TIMEOUT);
         auto reset_fences_result = vkResetFences(m_vkb_device.device, 1, &data.render_fence);
         if (reset_fences_result != VK_SUCCESS)
         {
-            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to reset render fence.", reset_fences_result));
-            return;
+            auto message = VKB_ERROR("Failed to reset render fence.", reset_fences_result);
+            log::error("vengine::vengine::vengine()", message);
+            return { reset_fences_result, message };
         }
     }
 
@@ -605,8 +632,9 @@ void vengine::vengine::render()
                 &swap_chain_image_index);
         if (acquire_next_image_result != VK_SUCCESS)
         {
-            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to receive next swap chain image.", acquire_next_image_result));
-            return;
+            auto message = VKB_ERROR("Failed to receive next swap chain image.", acquire_next_image_result);
+            log::error("vengine::vengine::vengine()", message);
+            return { acquire_next_image_result, message };
         }
     }
 
@@ -617,8 +645,9 @@ void vengine::vengine::render()
         auto reset_command_buffer_result = vkResetCommandBuffer(command_buffer, 0);
         if (reset_command_buffer_result != VK_SUCCESS)
         {
-            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to reset command buffer.", reset_command_buffer_result));
-            return;
+            auto message = VKB_ERROR("Failed to reset command buffer.", reset_command_buffer_result);
+            log::error("vengine::vengine::vengine()", message);
+            return { reset_command_buffer_result, message };
         }
     }
 
@@ -637,8 +666,9 @@ void vengine::vengine::render()
             auto command_buffer_begin_result = vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
             if (command_buffer_begin_result != VK_SUCCESS)
             {
-                log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to begin command buffer.", command_buffer_begin_result));
-                return;
+                auto message = VKB_ERROR("Failed to begin command buffer.", command_buffer_begin_result);
+                log::error("vengine::vengine::vengine()", message);
+                return { command_buffer_begin_result, message };
             }
         }
 
@@ -684,8 +714,9 @@ void vengine::vengine::render()
             auto command_buffer_end_result = vkEndCommandBuffer(command_buffer);
             if (command_buffer_end_result != VK_SUCCESS)
             {
-                log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to end command buffer.", command_buffer_end_result));
-                return;
+                auto message = VKB_ERROR("Failed to end command buffer.", command_buffer_end_result);
+                log::error("vengine::vengine::vengine()", message);
+                return { command_buffer_end_result, message };
             }
         }
     }
@@ -709,7 +740,8 @@ void vengine::vengine::render()
 
         if (data.command_buffers.size() > UINT32_MAX)
         {
-            log::warning("vengine::vengine::~vengine()", "More command buffers have been created then the vulkan api supports. Cannot submit all.");
+            auto message = "More command buffers have been created then the vulkan api supports. Cannot submit all.";
+            log::warning("vengine::vengine::~vengine()", message);
         }
         submit.commandBufferCount = (uint32_t)data.command_buffers.size();
         submit.pCommandBuffers = data.command_buffers.data();
@@ -717,8 +749,9 @@ void vengine::vengine::render()
         auto queue_submit_result = vkQueueSubmit(m_vkb_graphics_queue, 1, &submit, data.render_fence);
         if (queue_submit_result != VK_SUCCESS)
         {
-            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed submit render queue.", queue_submit_result));
-            return;
+            auto message = VKB_ERROR("Failed submit render queue.", queue_submit_result);
+            log::error("vengine::vengine::vengine()", message);
+            return { queue_submit_result, message };
         }
     }
 
@@ -739,14 +772,17 @@ void vengine::vengine::render()
         auto queue_present_result = vkQueuePresentKHR(m_vkb_graphics_queue, &presentInfo);
         if (queue_present_result != VK_SUCCESS)
         {
-            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed present render queue.", queue_present_result));
-            return;
+            auto message = VKB_ERROR("Failed present render queue.", queue_present_result);
+            log::error("vengine::vengine::vengine()", message);
+            return { queue_present_result, message };
         }
 
     }
     // Increase frame counter
     m_frame_counter++;
     m_frame_data_index = m_frame_data_index + 1 >= frame_data_structures_count ? 0 : m_frame_data_index + 1;
+
+    return {};
 }
 
 void vengine::vengine::destroy_shader_module(VkShaderModule buffer)

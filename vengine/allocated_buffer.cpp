@@ -14,4 +14,5 @@ void vengine::allocated_buffer::destroy()
     allocator = nullptr;
     buffer = nullptr;
     allocation = nullptr;
+    size = 0;
 }
