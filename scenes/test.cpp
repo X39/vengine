@@ -17,6 +17,89 @@
 
 #include <iostream>
 
+struct camera_helper
+{
+    glm::mat4 projection;
+    glm::mat4 view;
+
+    void set_orthographic_projection(float left, float top, float right, float bottom, float near, float far)
+    {
+        projection = glm::mat4{1.0f};
+        projection[0][0] = 2.0f / (right - left);
+        projection[1][1] = 2.0f / (bottom - top);
+        projection[2][2] = 2.0f / (far - near);
+        projection[3][0] = -(right - left) / (right - left);
+        projection[3][1] = -(bottom + top) / (bottom - top);
+        projection[3][2] = -near / (far - near);
+    };
+    void set_perspective_projection(float fov_y, float aspect, float near, float far)
+    {
+        auto tan_fov_y_half = tan(fov_y / 2.0f);
+        projection = glm::mat4{1.0f};
+        projection[0][0] = 1.0f / (aspect * tan_fov_y_half);
+        projection[1][1] = 1.0f / tan_fov_y_half;
+        projection[2][2] = far / (far - near);
+        projection[2][3] = 1.0f;
+        projection[3][2] = -(far * near) / (far - near);
+    };
+    // https://youtu.be/rvJHkYnAR3w?t=331
+
+    void set_view_direction(glm::vec3 position, glm::vec3 direction, glm::vec3 up)
+    {
+        // Set Orthonormal Basis
+        auto w = glm::normalize(direction);
+        auto u = glm::normalize(glm::cross(w, up));
+        auto v = glm::cross(w, u);
+        set_view(position, u, v, w);
+
+    }
+    void set_view_target(glm::vec3 position, glm::vec3 target, glm::vec3 up)
+    {
+        set_view_direction(position, target - position, up);
+    }
+    void set_view_euler(glm::vec3 position, glm::vec3 euler)
+    {
+        auto cos_z = glm::cos(euler.z);
+        auto sin_z = glm::sin(euler.z);
+        auto cos_y = glm::cos(euler.x);
+        auto sin_y = glm::sin(euler.x);
+        auto cos_x = glm::cos(euler.y);
+        auto sin_x = glm::sin(euler.y);
+        glm::vec3 u{ cos_x * cos_z + sin_x * sin_y * sin_z, cos_y * sin_z, cos_x * sin_y * sin_z - cos_z * sin_x };
+        glm::vec3 v{ cos_z * sin_x * sin_y - cos_x * sin_z, cos_y * cos_z, cos_x * cos_z * sin_y + sin_x * sin_z };
+        glm::vec3 w{ cos_y * sin_x, -sin_y, cos_x * cos_y };
+        set_view(position, u, v, w);
+    }
+    void set_view_euler(glm::vec3 position, float pitch, float yaw, float roll)
+    {
+        set_view_euler(position, { pitch, yaw, roll });
+    }
+private:
+    void set_view(glm::vec3 position, glm::vec3 u, glm::vec3 v, glm::vec3 w)
+    {
+        // Rotation * Translation matrix
+
+
+        view = glm::mat4{1.0f};
+
+        // <-- Rotation
+        view[0][0] = u.x;
+        view[0][1] = u.x;
+        view[0][2] = u.x;
+        view[1][0] = v.x;
+        view[1][1] = v.x;
+        view[1][2] = v.x;
+        view[2][0] = w.x;
+        view[2][1] = w.x;
+        view[2][2] = w.x;
+
+        // <-- Translation
+        view[3][0] = -glm::dot(u, position);
+        view[3][1] = -glm::dot(u, position);
+        view[3][2] = -glm::dot(u, position);
+    }
+};
+
 void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args)
 {
     vkCmdBindPipeline(args.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
@@ -24,35 +107,22 @@ void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(args.command_buffer, 0, 1, &m_monkey_mesh.vertex_buffer.buffer, &offset);
 
-
-    {
-        // Camera
-        // --> Position
-        glm::vec3 camPos = { 0.f, 0.f, -2.f };
-        glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
-        // --> Projection
-        glm::mat4 projection = glm::perspective(
-                glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-        projection[1][1] *= -1;
-        // --> Copy to buffer
-        vengine::vengine::gpu_camera_data{ .view = view, .projection = projection, .view_projection = view * projection }
-                .set_gpu_buffer_data(args.current_frame_data.camera_buffer);
-    }
-    // auto camera_position = ecs().get<vengine::ecs::position>(m_camera);
-    // auto camera_velocity = ecs().get<vengine::ecs::velocity>(m_camera);
-    // auto camera_rotation = ecs().get<vengine::ecs::rotation>(m_camera);
-    // engine().current_frame_data().camera_buffer.with_mapped(
-    //         [&](auto &span)
-    //         {
-    //             auto camera_data = reinterpret_cast<vengine::vengine::gpu_camera_data *>(span.data());
-    //             camera_data->view = glm::mat4_cast(camera_rotation.data)
-    //                                 * glm::translate(glm::mat4 { 1.0f }, -camera_position.data);
-    //             glm::mat4 projection = glm::perspective(
-    //                     glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-    //             projection[1][1] *= -1;
-    //             camera_data->projection = projection;
-    //             camera_data->view_projection = camera_data->view * projection;
-    //         });
+    camera_helper cam_helper{};
+    cam_helper.set_perspective_projection(glm::radians(50.0f), 1700.f / 900.f, 0.1f, 200.0f);
+    auto camera_position = ecs().get<vengine::ecs::position>(m_camera);
+    auto camera_velocity = ecs().get<vengine::ecs::velocity>(m_camera);
+    auto camera_rotation = ecs().get<vengine::ecs::rotation>(m_camera);
+    // cam_helper.set_view_euler(camera_position, camera_rotation.euler_angles());
+    cam_helper.set_view_target(camera_position, { 0.0f, 0.0f, 0.0f }, {0.0f, 0.0f, 1.0f});
+    auto projection_view = cam_helper.view * cam_helper.projection;
+    engine().current_frame_data().camera_buffer.with_mapped(
+            [&](auto &span)
+            {
+                auto camera_data = reinterpret_cast<vengine::vengine::gpu_camera_data *>(span.data());
+                camera_data->view = cam_helper.view;
+                camera_data->projection = cam_helper.projection;
+                camera_data->view_projection = cam_helper.view * cam_helper.projection;
+            });
 
     ecs().view<vengine::ecs::position, vengine::ecs::velocity>().each(
                  [&](auto &pos, auto &vel)
@@ -72,9 +142,11 @@ void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args
                      .each(
                              [&](const auto &pos, const auto &rot, const auto &renderable)
                              {
-                                 mesh_data[index++]->matrix = glm::mat4_cast(rot.data)
-                                                              * glm::translate(glm::mat4 { 1.0f }, pos.data)
-                                                              * glm::scale(glm::mat4 { 1.0f }, renderable.scale);
+                                 auto scale = glm::scale(glm::mat4 { 1.0f }, renderable.scale);
+                                 auto rotate = glm::mat4_cast(rot.data);
+                                 auto translate = glm::translate(glm::mat4 { 1.0f }, pos.data);
+                                 auto model = translate * rotate * scale;
+                                 mesh_data[index++]->matrix = model;
                                  meshes++;
                              });
             });
@@ -85,20 +157,6 @@ void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args
     ecs().view<const vengine::ecs::position, const vengine::ecs::rotation, const vengine::ecs::renderable>().each(
                  [&](const auto &pos, const auto &rot, const auto &renderable)
                  {
-                     vengine::mesh::push_constant constants = { };
-                     constants.matrix = glm::mat4_cast(rot.data)
-                                        * glm::translate(glm::mat4 { 1.0f }, pos.data)
-                                        * glm::scale(glm::mat4 { 1.0f }, renderable.scale);
-
-                     // Upload the view_matrix to the GPU via push constants
-                     vkCmdPushConstants(
-                             args.command_buffer,
-                             m_pipeline_layout,
-                             VK_SHADER_STAGE_VERTEX_BIT,
-                             0,
-                             sizeof(vengine::mesh::push_constant),
-                             &constants);
-
                      if (renderable.mesh != current_mesh)
                      {
                          VkDeviceSize offset = 0;

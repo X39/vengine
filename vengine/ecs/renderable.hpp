@@ -11,7 +11,7 @@ namespace vengine::ecs
     struct renderable
     {
         ::vengine::mesh* mesh{};
-        glm::vec3 scale { 1.0f };
+        glm::vec3 scale { 1.0f, 1.0f, 1.0f };
     };
 }
 
