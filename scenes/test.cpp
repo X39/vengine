@@ -100,29 +100,103 @@ private:
     }
 };
 
+/* WORKING STATE
 void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args)
 {
     vkCmdBindPipeline(args.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
     VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(args.command_buffer, 0, 1, &m_monkey_mesh.vertex_buffer.buffer, &offset);
+    vkCmdBindVertexBuffers(args.command_buffer, 0, 1,
+            &m_monkey_mesh.vertex_buffer.buffer, &offset);
 
-    camera_helper cam_helper{};
-    cam_helper.set_perspective_projection(glm::radians(50.0f), 1700.f / 900.f, 0.1f, 200.0f);
+
+    // Camera
+    // --> Position
+    // Model rotation
+    glm::mat4 cam_rotate = glm::rotate(
+            glm::mat4{ 1.0f },
+            glm::radians((float)engine().frame_count() * 0.01f),
+            glm::vec3(0, 1, 0));
+    glm::mat4 cam_translate = glm::translate(glm::mat4{1.0}, glm::vec3{0.0f, 0.0, -2.0});
+    glm::mat4 cam_scale = glm::scale(glm::mat4{1.0f}, glm::vec3{1, 0.5, 0.5});
+
+    glm::mat4 view = cam_rotate * cam_translate * cam_scale;
+    // --> Projection
+    glm::mat4 projection = glm::perspective(
+            glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+    projection[1][1] *= -1;
+    // --> Copy to buffer
+    vengine::vengine::camera_data{ .view = view, .projection = projection, .view_projection = view * projection }
+            .set_gpu_buffer_data(args.current_frame_data.camera_buffer);
+
+
+    // Model rotation
+    glm::mat4 rotate = glm::rotate(
+            glm::mat4{ 1.0f },
+            glm::radians((float)engine().frame_count() * 0.005f),
+            glm::vec3(0, 1, 0));
+    glm::mat4 translate = glm::translate(glm::mat4{1.0}, glm::vec3{1.0f, 0.0, 0.0});
+    glm::mat4 scale = glm::scale(glm::mat4{1.0f}, glm::vec3{0.5, 0.5, 0.5});
+
+    // Calculate final mesh view_matrix
+    glm::mat4 mesh_matrix = projection * view * (translate * rotate * scale);
+
+    vengine::mesh::push_constant constants = {};
+    constants.matrix = mesh_matrix;
+
+    // Upload the view_matrix to the GPU via push constants
+    vkCmdPushConstants(args.command_buffer,
+            m_pipeline_layout,
+            VK_SHADER_STAGE_VERTEX_BIT,
+            0,
+            sizeof(vengine::mesh::push_constant),
+            &constants);
+
+    vkCmdDraw(args.command_buffer, (uint32_t)m_monkey_mesh.size(), 1, 0, 0);
+}
+ */
+
+
+glm::mat4 scenes::test::set_camera()
+{
+    // camera_helper cam_helper{};
+    // cam_helper.set_perspective_projection(glm::radians(50.0f), 1700.f / 900.f, 0.1f, 200.0f);
+    // // cam_helper.set_view_euler(camera_position, camera_rotation.euler_angles());
+    // cam_helper.set_view_target(camera_position, { 0.0f, 0.0f, 0.0f }, {0.0f, 0.0f, 1.0f});
+
     auto camera_position = ecs().get<vengine::ecs::position>(m_camera);
     auto camera_velocity = ecs().get<vengine::ecs::velocity>(m_camera);
     auto camera_rotation = ecs().get<vengine::ecs::rotation>(m_camera);
-    // cam_helper.set_view_euler(camera_position, camera_rotation.euler_angles());
-    cam_helper.set_view_target(camera_position, { 0.0f, 0.0f, 0.0f }, {0.0f, 0.0f, 1.0f});
-    auto projection_view = cam_helper.view * cam_helper.projection;
+
+    glm::mat4 cam_rotate = glm::rotate(
+            glm::mat4{ 1.0f },
+            glm::radians((float)engine().frame_count() * 0.01f),
+            glm::vec3(0, 1, 0));
+    glm::mat4 cam_translate = glm::translate(glm::mat4{1.0}, camera_position.data);
+
+    glm::mat4 view = cam_rotate * cam_translate;
+    // --> Projection
+    glm::mat4 projection = glm::perspective(
+            glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+    projection[1][1] *= -1;
+
+    auto projection_view = view * projection;
     engine().current_frame_data().camera_buffer.with_mapped(
             [&](auto &span)
             {
                 auto camera_data = reinterpret_cast<vengine::vengine::gpu_camera_data *>(span.data());
-                camera_data->view = cam_helper.view;
-                camera_data->projection = cam_helper.projection;
-                camera_data->view_projection = cam_helper.view * cam_helper.projection;
+                camera_data->view = view;
+                camera_data->projection = projection;
+                camera_data->view_projection = view * projection;
             });
+    return projection_view;
+}
+
+void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args)
+{
+    vkCmdBindPipeline(args.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+
+    auto projection_view = set_camera();
 
     ecs().view<vengine::ecs::position, vengine::ecs::velocity>().each(
                  [&](auto &pos, auto &vel)
@@ -136,17 +210,21 @@ void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args
     engine().current_frame_data().mesh_buffer.with_mapped(
             [&](auto &span)
             {
-                auto mesh_data = reinterpret_cast<vengine::vengine::gpu_mesh_data **>(span.data());
+                auto mesh_data = reinterpret_cast<vengine::vengine::gpu_mesh_data*>(span.data());
                 size_t index = 0;
                 ecs().view<const vengine::ecs::position, const vengine::ecs::rotation, const vengine::ecs::renderable>()
                      .each(
                              [&](const auto &pos, const auto &rot, const auto &renderable)
                              {
+                                 glm::mat4 rotate = glm::rotate(
+                                         glm::mat4{ 1.0f },
+                                         glm::radians((float)engine().frame_count() * 0.005f),
+                                         glm::vec3(0, 1, 0));
                                  auto scale = glm::scale(glm::mat4 { 1.0f }, renderable.scale);
-                                 auto rotate = glm::mat4_cast(rot.data);
+                                 // auto rotate = glm::mat4_cast(rot.data);
                                  auto translate = glm::translate(glm::mat4 { 1.0f }, pos.data);
                                  auto model = translate * rotate * scale;
-                                 mesh_data[index++]->matrix = model;
+                                 mesh_data[index++].matrix = model;
                                  meshes++;
                              });
             });
@@ -176,15 +254,11 @@ void scenes::test::load_scene()
 {
     m_fragment_shader = engine().create_shader_module(vengine::ram_file::from_disk("shaders/frag.spv").value()).value();
     m_vertex_shader = engine().create_shader_module(vengine::ram_file::from_disk("shaders/vert.spv").value()).value();
-    m_pipeline_layout
-            = vengine::vulkan_utils::pipeline_layout_builder(engine().vulkan_device()).add_push_constant_range(
-                                                                                              sizeof(vengine::mesh::push_constant),
-                                                                                              0,
-                                                                                              VK_SHADER_STAGE_VERTEX_BIT)
-                                                                                      .add_descriptor_set_layout(
-                                                                                              engine().vulkan_descriptor_set_layout())
-                                                                                      .build()
-                                                                                      .value();
+    m_pipeline_layout = vengine::vulkan_utils::pipeline_layout_builder(engine().vulkan_device())
+            // .add_push_constant_range(sizeof(vengine::mesh::push_constant),0,VK_SHADER_STAGE_VERTEX_BIT)
+            .add_descriptor_set_layout(engine().vulkan_descriptor_set_layout())
+            .build()
+            .value();
     m_pipeline = vengine::vulkan_utils::pipeline_builder(
             engine().vulkan_device(),
             engine().vulkan_render_pass(),
@@ -233,9 +307,9 @@ void scenes::test::load_scene()
         ecs().emplace<vengine::ecs::velocity>(m_camera, vel);
     }
 
-    for (size_t x = -1000; x <= 1000; x++)
+    for (int x = -10; x <= 10; x++)
     {
-        for (size_t y = -1000; y <= 1000; y++)
+        for (int y = -10; y <= 10; y++)
         {
             vengine::ecs::position pos { };
             pos.data = { x, y, 0 };
@@ -248,7 +322,7 @@ void scenes::test::load_scene()
 
             auto entity = ecs().create();
             ecs().emplace<vengine::ecs::position>(entity, pos);
-            ecs().emplace<vengine::ecs::rotation>(m_camera, rot);
+            ecs().emplace<vengine::ecs::rotation>(entity, rot);
             ecs().emplace<vengine::ecs::velocity>(entity, vel);
             ecs().emplace<vengine::ecs::renderable>(entity, renderable);
         }

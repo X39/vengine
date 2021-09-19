@@ -26,6 +26,8 @@ namespace scenes
         explicit test(vengine::vengine& engine) : vengine::scene(engine) {}
 
         entt::entity m_camera;
+
+        glm::mat4 set_camera();
     };
 }
 

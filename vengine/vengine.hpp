@@ -29,6 +29,7 @@ namespace vengine
             int height;
         };
 
+#pragma pack(push, 1)
         struct gpu_camera_data
         {
             glm::mat4 view;
@@ -48,6 +49,7 @@ namespace vengine
         {
             glm::mat4 matrix;
         };
+#pragma pack(pop)
 
         struct frame_data
         {

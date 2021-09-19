@@ -107,7 +107,6 @@ vengine::vengine::vengine()
     // Create descriptor pool
     auto descriptor_pool_result = vulkan_utils::descriptor_pool_builder(m_vkb_device.device, 10 * frame_data_structures_count)
             .add_layout_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10)
-            .add_layout_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10)
             .add_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10)
             .build();
     if (!descriptor_pool_result)
@@ -120,8 +119,7 @@ vengine::vengine::vengine()
     // Create descriptor set layout
     auto descriptor_set_layout_result = vulkan_utils::descriptor_set_layout_builder(m_vkb_device.device)
             .add_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT)
-            .add_layout_binding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-            .add_layout_binding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT)
+            .add_layout_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT)
             .build();
     if (!descriptor_set_layout_result)
     {
@@ -419,7 +417,7 @@ vengine::vengine::vengine()
                 .add_descriptor_set(data.descriptor_set, [&](auto& builder) {
                     builder
                             .add_descriptor_buffer_info(data.mesh_buffer, 0)
-                            .set_binding_destination(2)
+                            .set_binding_destination(1)
                             .set_descriptor_type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
                 })
                 .update();
