@@ -18,12 +18,13 @@ namespace scenes
         VkPipeline m_pipeline{};
         vengine::mesh m_triangle_mesh;
         vengine::mesh m_monkey_mesh;
+        bool m_can_rotate;
     protected:
         void render_pass(::vengine::vengine::on_render_pass_event_args &args) override;
         void load_scene() override;
         void unload_scene() override;
     public:
-        explicit test(vengine::vengine& engine) : vengine::scene(engine) {}
+        explicit test(vengine::vengine& engine) : vengine::scene(engine), m_can_rotate(false) {}
 
         entt::entity m_camera;
 

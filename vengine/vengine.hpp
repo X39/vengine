@@ -364,7 +364,7 @@ namespace vengine
 
         struct on_mouse_button_event_args
         {
-            [[maybe_unused]] mouse_buttons pos_x;
+            [[maybe_unused]] mouse_buttons buttons;
             [[maybe_unused]] key_mods mods;
             [[maybe_unused]] key_actions action;
         };

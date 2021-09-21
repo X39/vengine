@@ -15,6 +15,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <iomanip>
 #include <iostream>
 
 struct camera_helper
@@ -168,16 +169,24 @@ glm::mat4 scenes::test::set_camera()
     auto camera_velocity = ecs().get<vengine::ecs::velocity>(m_camera);
     auto camera_rotation = ecs().get<vengine::ecs::rotation>(m_camera);
 
-    glm::mat4 cam_rotate = glm::rotate(
-            glm::mat4{ 1.0f },
-            glm::radians((float)engine().frame_count() * 0.01f),
-            glm::vec3(0, 1, 0));
     glm::mat4 cam_translate = glm::translate(glm::mat4{1.0}, camera_position.data);
+    glm::mat4 cam_rotate = mat4_cast(camera_rotation.data);
+    glm::mat4 cam_scale = glm::scale(glm::mat4{1.0f}, glm::vec3{1, 1, 1});
 
-    glm::mat4 view = cam_rotate * cam_translate;
+    glm::mat4 view = cam_translate * cam_rotate * cam_scale;
+    std::cout << "{ "
+              << "p: " << std::setw(8)<< std::setfill(' ') << camera_rotation.euler_pitch() << ", "
+              << "y: " << std::setw(8)<< std::setfill(' ') << camera_rotation.euler_yaw() << ", "
+              << "r: " << std::setw(8)<< std::setfill(' ') << camera_rotation.euler_roll() << " } - "
+              << "{ "
+              << "x: " << std::setw(8)<< std::setfill(' ') << camera_position.data.x << ", "
+              << "y: " << std::setw(8)<< std::setfill(' ') << camera_position.data.y << ", "
+              << "z: " << std::setw(8)<< std::setfill(' ') << camera_position.data.z << " }" << std::endl;
     // --> Projection
     glm::mat4 projection = glm::perspective(
-            glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+            glm::radians(70.f),
+            (float)engine().vulkan_default_scissors().extent.width / (float)engine().vulkan_default_scissors().extent.height,
+            0.1f, 200.0f);
     projection[1][1] *= -1;
 
     auto projection_view = view * projection;
@@ -195,6 +204,7 @@ glm::mat4 scenes::test::set_camera()
 void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args)
 {
     vkCmdBindPipeline(args.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+    vkCmdBindDescriptorSets(args.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout, 0, 1, &args.current_frame_data.descriptor_set, 0, NULL);
 
     auto projection_view = set_camera();
 
@@ -216,12 +226,8 @@ void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args
                      .each(
                              [&](const auto &pos, const auto &rot, const auto &renderable)
                              {
-                                 glm::mat4 rotate = glm::rotate(
-                                         glm::mat4{ 1.0f },
-                                         glm::radians((float)engine().frame_count() * 0.005f),
-                                         glm::vec3(0, 1, 0));
                                  auto scale = glm::scale(glm::mat4 { 1.0f }, renderable.scale);
-                                 // auto rotate = glm::mat4_cast(rot.data);
+                                 auto rotate = glm::mat4_cast(rot.data);
                                  auto translate = glm::translate(glm::mat4 { 1.0f }, pos.data);
                                  auto model = translate * rotate * scale;
                                  mesh_data[index++].matrix = model;
@@ -307,27 +313,43 @@ void scenes::test::load_scene()
         ecs().emplace<vengine::ecs::velocity>(m_camera, vel);
     }
 
-    for (int x = -10; x <= 10; x++)
+    const int max = 10;
+    for (int x = -max; x <= max; x++)
     {
-        for (int y = -10; y <= 10; y++)
+        for (int y = -max; y <= max; y++)
         {
-            vengine::ecs::position pos { };
-            pos.data = { x, y, 0 };
-            vengine::ecs::rotation rot { };
-            rot.euler_angles(0, 0, 0);
-            vengine::ecs::velocity vel { };
-            vel.data = { x, y, 0 };
-            vengine::ecs::renderable renderable { };
-            renderable.mesh = &m_monkey_mesh;
+            for (int z = -max; z <= max; z++)
+            {
+                vengine::ecs::position pos { };
+                pos.data = { x*5, y*5, z*5 };
+                vengine::ecs::rotation rot { };
+                rot.euler_angles(0, 0, 0);
+                vengine::ecs::velocity vel { };
+                vel.data = { 0, 0, 0 };
+                vengine::ecs::renderable renderable { };
+                renderable.mesh = &m_monkey_mesh;
+                renderable.scale = glm::vec3{0.5, 0.5, 0.5};
 
-            auto entity = ecs().create();
-            ecs().emplace<vengine::ecs::position>(entity, pos);
-            ecs().emplace<vengine::ecs::rotation>(entity, rot);
-            ecs().emplace<vengine::ecs::velocity>(entity, vel);
-            ecs().emplace<vengine::ecs::renderable>(entity, renderable);
+                auto entity = ecs().create();
+                ecs().emplace<vengine::ecs::position>(entity, pos);
+                ecs().emplace<vengine::ecs::rotation>(entity, rot);
+                ecs().emplace<vengine::ecs::velocity>(entity, vel);
+                ecs().emplace<vengine::ecs::renderable>(entity, renderable);
+            }
         }
     }
 
+    engine().on_mouse_button.subscribe([&](auto& sender, auto& args) {
+        m_can_rotate = args.action == vengine::vengine::key_actions::PRESS;
+    });
+    engine().on_mouse_move.subscribe([&](auto& sender, auto& args) {
+        if (!m_can_rotate) { return; }
+        auto& camera_rotation = ecs().get<vengine::ecs::rotation>(m_camera);
+        auto euler = camera_rotation.euler_angles();
+        euler.y += (float)(args.delta_x * 0.1f);
+        euler.x += (float)(args.delta_y * 0.1f);
+        camera_rotation.euler_angles(euler);
+    });
     engine().on_key.subscribe(
             [&](auto &sender, auto &args)
             {
