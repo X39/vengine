@@ -376,7 +376,7 @@ vengine::vengine::vengine()
         }
         data.camera_buffer = camera_buffer_result.value();
 
-        auto mesh_buffer_result = vulkan_utils::buffer_builder(m_vma_allocator, sizeof(data.mesh_buffer) * data.mesh_buffer_size)
+        auto mesh_buffer_result = vulkan_utils::buffer_builder(m_vma_allocator, sizeof(vengine::vengine::gpu_mesh_data) * data.mesh_buffer_size)
                 .set_buffer_usage(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
                 .set_memory_usage(VMA_MEMORY_USAGE_CPU_TO_GPU)
                 .build();

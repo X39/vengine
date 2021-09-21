@@ -75,7 +75,7 @@ namespace vengine
             std::vector<VkCommandBuffer> command_buffers;
 
 
-            const size_t mesh_buffer_size = 1000;
+            const size_t mesh_buffer_size = 100000;
             allocated_buffer camera_buffer;
             allocated_buffer mesh_buffer;
             VkDescriptorSet descriptor_set;
