@@ -694,6 +694,7 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
             render_pass_begin_info.pClearValues = clear_values.data();
 
             vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
         }
     }
 
@@ -1050,6 +1051,12 @@ void vengine::vengine::handle_pending_events()
 void vengine::vengine::swap_buffers()
 {
     glfwSwapBuffers(glfw_wnd);
+}
+
+vengine::vengine::key_actions vengine::vengine::get_key(keys key)
+{
+    auto result = glfwGetKey(glfw_wnd, static_cast<int>(key));
+    return static_cast<vengine::vengine::key_actions>(result);
 }
 
 #pragma endregion

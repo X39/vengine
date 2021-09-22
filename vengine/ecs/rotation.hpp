@@ -40,7 +40,7 @@ namespace vengine::ecs
 
         void euler_angles(glm::vec3 euler)
         {
-            data = {euler};
+            data = glm::quat { euler };
         }
         void euler_angles(float pitch, float yaw, float roll)
         {

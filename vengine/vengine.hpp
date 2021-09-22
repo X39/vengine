@@ -323,6 +323,7 @@ namespace vengine
         void swap_buffers();
 
     public:
+        key_actions get_key(keys key);
 
 #pragma region events
         struct on_key_event_args
@@ -421,9 +422,6 @@ namespace vengine
         };
         using on_window_content_scale_event = utils::event_source<vengine, on_window_content_scale_event_args>;
         on_window_content_scale_event on_window_content_scale;
-#pragma endregion
-#pragma region on_key...
-
 #pragma endregion
 
         [[maybe_unused]] static void set_error_callback(void(*error_handle)(int error_code, const char *error_message));
