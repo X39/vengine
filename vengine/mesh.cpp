@@ -6,42 +6,82 @@
 #include "log.hpp"
 #include "vulkan-utils/stringify.hpp"
 #include "vulkan-utils/buffer_builder.hpp"
+#include "vengine.hpp"
 
 
 #include <tiny_obj_loader.h>
 #include <vulkan/vulkan.h>
 
-void vengine::mesh::upload(VmaAllocator allocator)
+vengine::vulkan_utils::result<void> vengine::mesh::upload_to_cpu_writable_gpu_memory(VmaAllocator allocator)
 {
     if (vertex_buffer.uploaded())
     {
-        log::warning("vengine::mesh::upload(VmaAllocator)", "Attempt was made to upload a mesh twice to the GPU.");
-        return;
+        log::warning("vengine::mesh::upload_to_cpu_writable_gpu_memory(VmaAllocator)", "Attempt was made to upload a mesh twice to the GPU.");
+        return { VK_SUCCESS, "Attempt was made to upload_to_cpu_writable_gpu_memory a mesh twice to the GPU." };
     }
 
     auto buffer_builder_result = vulkan_utils::buffer_builder(allocator, size())
             .set_buffer_usage(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
             .set_memory_usage(VMA_MEMORY_USAGE_CPU_TO_GPU)
             .build();
-    if (!buffer_builder_result.has_value())
+    if (!buffer_builder_result.good())
     {
-        log::error("vengine::mesh::upload(VmaAllocator)", "Failed to create buffer.");
-        return;
+        return buffer_builder_result;
     }
     vertex_buffer = buffer_builder_result.value();
 
-    void* data;
-    auto map_memory_result = vmaMapMemory(allocator, vertex_buffer.allocation, &data);
-    if (map_memory_result != VK_SUCCESS)
+    return vertex_buffer.with_mapped([&](auto& span) {
+        memcpy(span.data(), vertices.data(), vertices.size() * sizeof(vertex));
+    });
+}
+
+vengine::vulkan_utils::result<void> vengine::mesh::upload_to_gpu_memory(::vengine::vengine& engine, VmaAllocator allocator)
+{
+    if (vertex_buffer.uploaded())
     {
-        auto message = std::string("Failed to map memory for uploading mesh (").append(vulkan_utils::stringify::data(map_memory_result)).append(").");
-        log::error("vengine::mesh::upload(VmaAllocator)", message);
-        return;
+        log::warning("vengine::mesh::upload_to_gpu_memory(vengine&, VmaAllocator)", "Attempt was made to upload a mesh twice to the GPU.");
+        return { VK_SUCCESS, "Attempt was made to upload a mesh twice to the GPU." };
     }
 
-    memcpy(data, vertices.data(), vertices.size() * sizeof(vertex));
+    auto cpu_writeable_buffer_builder_result = vulkan_utils::buffer_builder(allocator, size())
+            .set_buffer_usage(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT)
+            .set_memory_usage(VMA_MEMORY_USAGE_CPU_TO_GPU)
+            .build();
+    if (!cpu_writeable_buffer_builder_result.good())
+    {
+        return cpu_writeable_buffer_builder_result;
+    }
+    auto tmp = cpu_writeable_buffer_builder_result.value();
 
-    vmaUnmapMemory(allocator, vertex_buffer.allocation);
+    tmp.with_mapped([&](auto& span) {
+        memcpy(span.data(), vertices.data(), vertices.size() * sizeof(vertex));
+    });
+
+
+    auto gpu_buffer_builder_result = vulkan_utils::buffer_builder(allocator, size())
+            .set_buffer_usage(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT)
+            .set_memory_usage(VMA_MEMORY_USAGE_GPU_ONLY)
+            .build();
+    if (!gpu_buffer_builder_result.good())
+    {
+        tmp.destroy();
+        return gpu_buffer_builder_result;
+    }
+    vertex_buffer = gpu_buffer_builder_result.value();
+
+    auto execute_result = engine.execute([&](auto& command_buffer) {
+        VkBufferCopy buffer_copy{};
+        buffer_copy.size = size();
+        vkCmdCopyBuffer(command_buffer, tmp.buffer, vertex_buffer.buffer, 1, &buffer_copy);
+    });
+    if (!execute_result.good())
+    {
+        tmp.destroy();
+        vertex_buffer.destroy();
+        return execute_result;
+    }
+    tmp.destroy();
+    return {};
 }
 
 std::optional<vengine::mesh> vengine::mesh::from_obj(const ram_file& obj_file, const ram_file& mtl_file)

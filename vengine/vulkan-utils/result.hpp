@@ -26,6 +26,7 @@ namespace vengine::vulkan_utils
         [[maybe_unused]] result(VkResult result) : m_result(result), m_payload({}) {}
         [[maybe_unused]] result(VkResult result, std::string message) : m_result(result), m_payload({}), m_message(std::move(message)) {}
         [[maybe_unused]] result(VkResult result, std::string_view message) : m_result(result), m_payload({}), m_message(std::string(message.begin(), message.end())) {}
+        [[maybe_unused]] result(VkResult result, const char* message) : m_result(result), m_payload({}), m_message(message) {}
         [[maybe_unused]] result(std::string message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_payload({}), m_message(std::move(message)) {}
         [[maybe_unused]] result(std::string_view message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_payload({}), m_message(std::string(message.begin(), message.end())) {}
         [[maybe_unused]] result(const char* message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_payload({}), m_message(message) {}
@@ -41,6 +42,8 @@ namespace vengine::vulkan_utils
         [[maybe_unused]] [[nodiscard]] bool good() const { return m_result == VK_SUCCESS; }
 
         operator bool() const { return good(); } // NOLINT(google-explicit-constructor)
+
+        operator result<void>() const { return result<void>{ m_result, m_message }; }
     };
     template<>
     class result<void>
@@ -54,6 +57,7 @@ namespace vengine::vulkan_utils
         [[maybe_unused]] result(VkResult result) : m_result(result) {}
         [[maybe_unused]] result(VkResult result, std::string message) : m_result(result), m_message(std::move(message)) {}
         [[maybe_unused]] result(VkResult result, std::string_view message) : m_result(result), m_message(std::string(message.begin(), message.end())) {}
+        [[maybe_unused]] result(VkResult result, const char* message) : m_result(result), m_message(message) {}
         [[maybe_unused]] result(std::string message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_message(std::move(message)) {}
         [[maybe_unused]] result(std::string_view message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_message(std::string(message.begin(), message.end())) {}
         [[maybe_unused]] result(const char* message) : m_result(VkResult::VK_ERROR_UNKNOWN), m_message(message) {}

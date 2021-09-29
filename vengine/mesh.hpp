@@ -5,6 +5,7 @@
 #ifndef GAME_PROJ_MESH_HPP
 #define GAME_PROJ_MESH_HPP
 
+#include "vulkan-utils/result.hpp"
 #include "allocated_buffer.hpp"
 #include "ram_file.hpp"
 
@@ -16,7 +17,7 @@
 
 namespace vengine
 {
-
+    class vengine;
     struct vertex_input_description
     {
         std::vector<VkVertexInputBindingDescription> binding_descriptions;
@@ -89,7 +90,8 @@ namespace vengine
         mesh(std::initializer_list<vertex> vertexes) : vertices(vertexes.begin(), vertexes.end()) {}
 
 
-        void upload(VmaAllocator allocator);
+        [[nodiscard]] vulkan_utils::result<void> upload_to_cpu_writable_gpu_memory(VmaAllocator allocator);
+        [[nodiscard]] vulkan_utils::result<void> upload_to_gpu_memory(::vengine::vengine& engine, VmaAllocator allocator);
         [[nodiscard]] bool uploaded() const { return vertex_buffer.uploaded(); }
         void destroy();
         [[nodiscard]] static std::optional<mesh> from_obj(const ram_file& obj_file, const ram_file& mtl_file);

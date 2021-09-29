@@ -21,7 +21,7 @@ find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(EnTT REQUIRED)
 
-add_executable(game-proj vengine/ecs/position.hpp)
+add_executable(game-proj vengine/ecs/position.hpp vengine/vulkan-utils/submit_builder.hpp vengine/vulkan-utils/fence_builder.hpp)
 target_sources(game-proj PUBLIC
         scenes/test.hpp
         vengine/vengine.hpp

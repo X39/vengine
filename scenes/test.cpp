@@ -18,153 +18,8 @@
 #include <iomanip>
 #include <iostream>
 
-struct camera_helper
-{
-    glm::mat4 projection;
-    glm::mat4 view;
-
-    void set_orthographic_projection(float left, float top, float right, float bottom, float near, float far)
-    {
-        projection = glm::mat4{1.0f};
-        projection[0][0] = 2.0f / (right - left);
-        projection[1][1] = 2.0f / (bottom - top);
-        projection[2][2] = 2.0f / (far - near);
-        projection[3][0] = -(right - left) / (right - left);
-        projection[3][1] = -(bottom + top) / (bottom - top);
-        projection[3][2] = -near / (far - near);
-    };
-    void set_perspective_projection(float fov_y, float aspect, float near, float far)
-    {
-        auto tan_fov_y_half = tan(fov_y / 2.0f);
-        projection = glm::mat4{1.0f};
-        projection[0][0] = 1.0f / (aspect * tan_fov_y_half);
-        projection[1][1] = 1.0f / tan_fov_y_half;
-        projection[2][2] = far / (far - near);
-        projection[2][3] = 1.0f;
-        projection[3][2] = -(far * near) / (far - near);
-    };
-    // https://youtu.be/rvJHkYnAR3w?t=331
-
-    void set_view_direction(glm::vec3 position, glm::vec3 direction, glm::vec3 up)
-    {
-        // Set Orthonormal Basis
-        auto w = glm::normalize(direction);
-        auto u = glm::normalize(glm::cross(w, up));
-        auto v = glm::cross(w, u);
-        set_view(position, u, v, w);
-
-    }
-    void set_view_target(glm::vec3 position, glm::vec3 target, glm::vec3 up)
-    {
-        set_view_direction(position, target - position, up);
-    }
-    void set_view_euler(glm::vec3 position, glm::vec3 euler)
-    {
-        auto cos_z = glm::cos(euler.z);
-        auto sin_z = glm::sin(euler.z);
-        auto cos_y = glm::cos(euler.x);
-        auto sin_y = glm::sin(euler.x);
-        auto cos_x = glm::cos(euler.y);
-        auto sin_x = glm::sin(euler.y);
-        glm::vec3 u{ cos_x * cos_z + sin_x * sin_y * sin_z, cos_y * sin_z, cos_x * sin_y * sin_z - cos_z * sin_x };
-        glm::vec3 v{ cos_z * sin_x * sin_y - cos_x * sin_z, cos_y * cos_z, cos_x * cos_z * sin_y + sin_x * sin_z };
-        glm::vec3 w{ cos_y * sin_x, -sin_y, cos_x * cos_y };
-        set_view(position, u, v, w);
-    }
-    void set_view_euler(glm::vec3 position, float pitch, float yaw, float roll)
-    {
-        set_view_euler(position, { pitch, yaw, roll });
-    }
-private:
-    void set_view(glm::vec3 position, glm::vec3 u, glm::vec3 v, glm::vec3 w)
-    {
-        // Rotation * Translation matrix
-
-
-        view = glm::mat4{1.0f};
-
-        // <-- Rotation
-        view[0][0] = u.x;
-        view[0][1] = u.x;
-        view[0][2] = u.x;
-        view[1][0] = v.x;
-        view[1][1] = v.x;
-        view[1][2] = v.x;
-        view[2][0] = w.x;
-        view[2][1] = w.x;
-        view[2][2] = w.x;
-
-        // <-- Translation
-        view[3][0] = -glm::dot(u, position);
-        view[3][1] = -glm::dot(u, position);
-        view[3][2] = -glm::dot(u, position);
-    }
-};
-
-/* WORKING STATE
-void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args)
-{
-    vkCmdBindPipeline(args.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
-
-    VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(args.command_buffer, 0, 1,
-            &m_monkey_mesh.vertex_buffer.buffer, &offset);
-
-
-    // Camera
-    // --> Position
-    // Model rotation
-    glm::mat4 cam_rotate = glm::rotate(
-            glm::mat4{ 1.0f },
-            glm::radians((float)engine().frame_count() * 0.01f),
-            glm::vec3(0, 1, 0));
-    glm::mat4 cam_translate = glm::translate(glm::mat4{1.0}, glm::vec3{0.0f, 0.0, -2.0});
-    glm::mat4 cam_scale = glm::scale(glm::mat4{1.0f}, glm::vec3{1, 0.5, 0.5});
-
-    glm::mat4 view = cam_rotate * cam_translate * cam_scale;
-    // --> Projection
-    glm::mat4 projection = glm::perspective(
-            glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-    projection[1][1] *= -1;
-    // --> Copy to buffer
-    vengine::vengine::camera_data{ .view = view, .projection = projection, .view_projection = view * projection }
-            .set_gpu_buffer_data(args.current_frame_data.camera_buffer);
-
-
-    // Model rotation
-    glm::mat4 rotate = glm::rotate(
-            glm::mat4{ 1.0f },
-            glm::radians((float)engine().frame_count() * 0.005f),
-            glm::vec3(0, 1, 0));
-    glm::mat4 translate = glm::translate(glm::mat4{1.0}, glm::vec3{1.0f, 0.0, 0.0});
-    glm::mat4 scale = glm::scale(glm::mat4{1.0f}, glm::vec3{0.5, 0.5, 0.5});
-
-    // Calculate final mesh view_matrix
-    glm::mat4 mesh_matrix = projection * view * (translate * rotate * scale);
-
-    vengine::mesh::push_constant constants = {};
-    constants.matrix = mesh_matrix;
-
-    // Upload the view_matrix to the GPU via push constants
-    vkCmdPushConstants(args.command_buffer,
-            m_pipeline_layout,
-            VK_SHADER_STAGE_VERTEX_BIT,
-            0,
-            sizeof(vengine::mesh::push_constant),
-            &constants);
-
-    vkCmdDraw(args.command_buffer, (uint32_t)m_monkey_mesh.size(), 1, 0, 0);
-}
- */
-
-
 glm::mat4 scenes::test::set_camera()
 {
-    // camera_helper cam_helper{};
-    // cam_helper.set_perspective_projection(glm::radians(50.0f), 1700.f / 900.f, 0.1f, 200.0f);
-    // // cam_helper.set_view_euler(camera_position, camera_rotation.euler_angles());
-    // cam_helper.set_view_target(camera_position, { 0.0f, 0.0f, 0.0f }, {0.0f, 0.0f, 1.0f});
-
     auto camera_position = ecs().get<vengine::ecs::position>(m_camera);
     auto camera_velocity = ecs().get<vengine::ecs::velocity>(m_camera);
     auto camera_rotation = ecs().get<vengine::ecs::rotation>(m_camera);
@@ -291,11 +146,11 @@ void scenes::test::load_scene()
                     { 0.0f, -1.0f, 0.0f },
                     { },
                     { 0.0f, 1.0f,  0.0f } }, };
-    m_triangle_mesh.upload(engine().allocator());
+    m_triangle_mesh.upload_to_gpu_memory(engine(), engine().allocator());
     m_monkey_mesh = vengine::mesh::from_obj(
             vengine::ram_file::from_disk("assets/monkey_smooth.obj").value(),
             vengine::ram_file::from_disk("assets/monkey_smooth.mtl").value()).value();
-    m_monkey_mesh.upload(engine().allocator());
+    m_monkey_mesh.upload_to_gpu_memory(engine(), engine().allocator());
 
     {
         vengine::ecs::position pos { };

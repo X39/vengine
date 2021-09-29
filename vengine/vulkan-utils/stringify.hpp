@@ -7,6 +7,8 @@
 
 #include "vulkan/vulkan.h"
 
+#include <string_view>
+
 namespace vengine::vulkan_utils
 {
     struct stringify

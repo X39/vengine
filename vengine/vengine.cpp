@@ -12,6 +12,8 @@
 #include "vulkan-utils/descriptor_set_updater.hpp"
 #include "vulkan-utils/buffer_builder.hpp"
 #include "vulkan-utils/descriptor_pool_builder.hpp"
+#include "vulkan-utils/fence_builder.hpp"
+#include "vulkan-utils/submit_builder.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -224,7 +226,6 @@ vengine::vengine::vengine()
 
     // Create render pass
     {
-
         VkAttachmentReference color_attachment_ref = { };
         color_attachment_ref.attachment = 0;
         color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -302,6 +303,37 @@ vengine::vengine::vengine()
         }
     }
 
+    // Create general command pool
+    {
+        VkCommandPoolCreateInfo command_pool_create_info = { };
+        command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        command_pool_create_info.pNext = nullptr;
+        command_pool_create_info.queueFamilyIndex = m_vkb_graphics_queue_index;
+        command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+        auto command_pool_result = vkCreateCommandPool(
+                m_vkb_device.device, &command_pool_create_info, nullptr, &m_general_command_pool);
+        if (command_pool_result != VK_SUCCESS)
+        {
+            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create general command pool.", command_pool_result));
+            return;
+        }
+    }
+    // Create general fence
+    {
+        auto fence_create_result = fence_builder(m_vkb_device.device)
+                .set_fence_create_flags(VK_FENCE_CREATE_SIGNALED_BIT)
+                .build();
+
+        if (!fence_create_result)
+        {
+            log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create general fence.", fence_create_result));
+            return;
+        }
+        m_general_fence = fence_create_result.value();
+    }
+
+
     for (size_t i = 0; i < frame_data_structures_count; i++)
     {
         auto& data = m_frame_data_structures.emplace_back();
@@ -324,20 +356,16 @@ vengine::vengine::vengine()
 
         // Create render fence
         {
-            VkFenceCreateInfo fence_create_info = { };
-            fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-            fence_create_info.pNext = nullptr;
+            auto fence_create_result = fence_builder(m_vkb_device.device)
+                    .set_fence_create_flags(VK_FENCE_CREATE_SIGNALED_BIT)
+                    .build();
 
-            //we want to create the fence with the Create Signaled flag, so we can wait on it before using it on a GPU command (for the first frame)
-            fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-            auto fence_create_result = vkCreateFence(
-                    m_vkb_device.device, &fence_create_info, nullptr, &data.render_fence);
-            if (fence_create_result != VK_SUCCESS)
+            if (!fence_create_result)
             {
-                log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create render fence.", fence_create_result));
+                log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create general fence.", fence_create_result));
                 return;
             }
+            data.render_fence = fence_create_result.value();
         }
 
         // Create present and render semaphore
@@ -459,6 +487,7 @@ vengine::vengine::~vengine()
         if (data.render_fence)
         {
             vkDestroyFence(m_vkb_device.device, data.render_fence, nullptr);
+            data.render_fence = {};
         }
         if (data.present_semaphore)
         {
@@ -483,7 +512,18 @@ vengine::vengine::~vengine()
         if (data.command_pool)
         {
             vkDestroyCommandPool(m_vkb_device.device, data.command_pool, nullptr);
+            data.command_pool = {};
         }
+    }
+    if (m_general_fence)
+    {
+        vkDestroyFence(m_vkb_device.device, m_general_fence, nullptr);
+        m_general_fence = {};
+    }
+    if (m_general_command_pool)
+    {
+        vkDestroyCommandPool(m_vkb_device.device, m_general_command_pool, nullptr);
+        m_general_command_pool = {};
     }
     m_frame_data_structures.clear();
     if (!m_frame_buffers.empty())
@@ -574,10 +614,29 @@ std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer(frame_dat
     auto command_buffer_result = vkAllocateCommandBuffers(m_vkb_device.device, &cmdAllocInfo, &vk_command_buffer);
     if (command_buffer_result != VK_SUCCESS)
     {
-        log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create command buffer.", command_buffer_result));
+        log::error("vengine::vengine::create_command_buffer(frame_data&)", VKB_ERROR("Failed to create command buffer.", command_buffer_result));
         return { };
     }
     frame.command_buffers.push_back(vk_command_buffer);
+    return vk_command_buffer;
+}
+std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer(VkCommandPool& command_pool) const
+{
+    VkCommandBufferAllocateInfo cmdAllocInfo = { };
+    cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAllocInfo.pNext = nullptr;
+
+    cmdAllocInfo.commandPool = command_pool;
+    cmdAllocInfo.commandBufferCount = 1;
+    cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+    VkCommandBuffer vk_command_buffer;
+    auto command_buffer_result = vkAllocateCommandBuffers(m_vkb_device.device, &cmdAllocInfo, &vk_command_buffer);
+    if (command_buffer_result != VK_SUCCESS)
+    {
+        log::error("vengine::vengine::create_command_buffer(VkCommandPool&)", VKB_ERROR("Failed to create command buffer.", command_buffer_result));
+        return { };
+    }
     return vk_command_buffer;
 }
 
@@ -587,7 +646,36 @@ std::optional<VkCommandBuffer> vengine::vengine::create_command_buffer(frame_dat
     data.command_buffers.erase(it);
     vkFreeCommandBuffers(m_vkb_device.device, data.command_pool, 1, &buffer);
 }
+[[maybe_unused]] void vengine::vengine::destroy_command_buffer(VkCommandPool& command_pool, VkCommandBuffer buffer) const
+{
+    vkFreeCommandBuffers(m_vkb_device.device, command_pool, 1, &buffer);
+}
 
+result<void> vengine::vengine::wait_for_fence(VkFence fence)
+{
+    const size_t one_second_in_nano_seconds = 1'000'0000'000;
+    VkResult wait_for_fence_result;
+    do
+    {
+        wait_for_fence_result = vkWaitForFences(
+                m_vkb_device.device, 1, &fence, true, one_second_in_nano_seconds);
+        if (wait_for_fence_result != VK_SUCCESS && wait_for_fence_result != VK_TIMEOUT)
+        {
+            auto message = VKB_ERROR("Failed to wait for render fence.", wait_for_fence_result);
+            log::error("vengine::vengine::render()", message);
+            return { wait_for_fence_result, message };
+        }
+    }
+    while (wait_for_fence_result == VK_TIMEOUT);
+    auto reset_fences_result = vkResetFences(m_vkb_device.device, 1, &fence);
+    if (reset_fences_result != VK_SUCCESS)
+    {
+        auto message = VKB_ERROR("Failed to fence.", reset_fences_result);
+        log::error("vengine::vengine::render()", message);
+        return { reset_fences_result, message };
+    }
+    return {};
+}
 
 vengine::vulkan_utils::result<void> vengine::vengine::render()
 {
@@ -595,28 +683,7 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
     // Wait for render fence
 
     auto& data = current_frame_data();
-    {
-        VkResult wait_for_fence_result;
-        do
-        {
-            wait_for_fence_result = vkWaitForFences(
-                    m_vkb_device.device, 1, &data.render_fence, true, one_second_in_nano_seconds);
-            if (wait_for_fence_result != VK_SUCCESS && wait_for_fence_result != VK_TIMEOUT)
-            {
-                auto message = VKB_ERROR("Failed to wait for render fence.", wait_for_fence_result);
-                log::error("vengine::vengine::vengine()", message);
-                return { wait_for_fence_result, message };
-            }
-        }
-        while (wait_for_fence_result == VK_TIMEOUT);
-        auto reset_fences_result = vkResetFences(m_vkb_device.device, 1, &data.render_fence);
-        if (reset_fences_result != VK_SUCCESS)
-        {
-            auto message = VKB_ERROR("Failed to reset render fence.", reset_fences_result);
-            log::error("vengine::vengine::vengine()", message);
-            return { reset_fences_result, message };
-        }
-    }
+    wait_for_fence(data.render_fence);
 
     // Acquire next swap chain image index
     uint32_t swap_chain_image_index;
@@ -631,7 +698,7 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
         if (acquire_next_image_result != VK_SUCCESS)
         {
             auto message = VKB_ERROR("Failed to receive next swap chain image.", acquire_next_image_result);
-            log::error("vengine::vengine::vengine()", message);
+            log::error("vengine::vengine::render()", message);
             return { acquire_next_image_result, message };
         }
     }
@@ -644,7 +711,7 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
         if (reset_command_buffer_result != VK_SUCCESS)
         {
             auto message = VKB_ERROR("Failed to reset command buffer.", reset_command_buffer_result);
-            log::error("vengine::vengine::vengine()", message);
+            log::error("vengine::vengine::render()", message);
             return { reset_command_buffer_result, message };
         }
     }
@@ -665,7 +732,7 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
             if (command_buffer_begin_result != VK_SUCCESS)
             {
                 auto message = VKB_ERROR("Failed to begin command buffer.", command_buffer_begin_result);
-                log::error("vengine::vengine::vengine()", message);
+                log::error("vengine::vengine::render()", message);
                 return { command_buffer_begin_result, message };
             }
         }
@@ -714,7 +781,7 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
             if (command_buffer_end_result != VK_SUCCESS)
             {
                 auto message = VKB_ERROR("Failed to end command buffer.", command_buffer_end_result);
-                log::error("vengine::vengine::vengine()", message);
+                log::error("vengine::vengine::render()", message);
                 return { command_buffer_end_result, message };
             }
         }
@@ -722,36 +789,15 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
 
 
     // Submit queue
+    auto submit_result = submit_builder(m_vkb_graphics_queue, data.render_fence)
+            .add_wait_semaphore(data.present_semaphore, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+            .add_signal_semaphore(data.render_semaphore)
+            .add_command_buffer(data.command_buffers.begin(), data.command_buffers.end())
+            .submit();
+    if (!submit_result)
     {
-        VkSubmitInfo submit = { };
-        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submit.pNext = nullptr;
-
-        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-        submit.pWaitDstStageMask = &waitStage;
-
-        submit.waitSemaphoreCount = 1;
-        submit.pWaitSemaphores = &data.present_semaphore;
-
-        submit.signalSemaphoreCount = 1;
-        submit.pSignalSemaphores = &data.render_semaphore;
-
-        if (data.command_buffers.size() > UINT32_MAX)
-        {
-            auto message = "More command buffers have been created then the vulkan api supports. Cannot submit all.";
-            log::warning("vengine::vengine::~vengine()", message);
-        }
-        submit.commandBufferCount = (uint32_t)data.command_buffers.size();
-        submit.pCommandBuffers = data.command_buffers.data();
-
-        auto queue_submit_result = vkQueueSubmit(m_vkb_graphics_queue, 1, &submit, data.render_fence);
-        if (queue_submit_result != VK_SUCCESS)
-        {
-            auto message = VKB_ERROR("Failed submit render queue.", queue_submit_result);
-            log::error("vengine::vengine::vengine()", message);
-            return { queue_submit_result, message };
-        }
+        log::error("vengine::vengine::render()", VKB_ERROR("Failed to submit render queue.", submit_result));
+        return submit_result;
     }
 
     // Present image to screen
@@ -772,7 +818,7 @@ vengine::vulkan_utils::result<void> vengine::vengine::render()
         if (queue_present_result != VK_SUCCESS)
         {
             auto message = VKB_ERROR("Failed present render queue.", queue_present_result);
-            log::error("vengine::vengine::vengine()", message);
+            log::error("vengine::vengine::render()", message);
             return { queue_present_result, message };
         }
 
@@ -806,11 +852,69 @@ std::optional<VkShaderModule> vengine::vengine::create_shader_module(const ram_f
     auto create_shader_module_result = vkCreateShaderModule(m_vkb_device.device, &createInfo, nullptr, &shaderModule);
     if (create_shader_module_result != VK_SUCCESS)
     {
-        log::error("vengine::vengine::vengine()", VKB_ERROR("Failed to create shader module.", create_shader_module_result));
+        log::error("vengine::vengine::create_shader_module(const ram_file&)", VKB_ERROR("Failed to create shader module.", create_shader_module_result));
         return { };
     }
     m_shader_modules.push_back(shaderModule);
     return shaderModule;
+}
+
+
+result<void> vengine::vengine::execute(std::function<void(VkCommandBuffer&)> func)
+{
+    auto command_buffer_optional = create_command_buffer(m_general_command_pool);
+    if (!command_buffer_optional.has_value())
+    {
+        return { "Failed to create Command-Buffer" };
+    }
+    auto command_buffer = command_buffer_optional.value();
+    {
+        // Begin command buffer
+        {
+            VkCommandBufferBeginInfo command_buffer_begin_info = { };
+            command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            command_buffer_begin_info.pNext = nullptr;
+
+            command_buffer_begin_info.pInheritanceInfo = nullptr;
+            command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+
+            auto command_buffer_begin_result = vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+            if (command_buffer_begin_result != VK_SUCCESS)
+            {
+                auto message = VKB_ERROR("Failed to begin command buffer.", command_buffer_begin_result);
+                log::error("vengine::vengine::execute(std::function<void(VkCommandBuffer&)>)", message);
+                return { command_buffer_begin_result, message };
+            }
+        }
+        func(command_buffer);
+        // End command buffer
+        {
+            auto command_buffer_end_result = vkEndCommandBuffer(command_buffer);
+            if (command_buffer_end_result != VK_SUCCESS)
+            {
+                auto message = VKB_ERROR("Failed to end command buffer.", command_buffer_end_result);
+                log::error("vengine::vengine::execute(std::function<void(VkCommandBuffer&)>)", message);
+                return { command_buffer_end_result, message };
+            }
+        }
+        // Submit to render queue
+        auto submit_result = submit_builder(m_vkb_graphics_queue, m_general_fence)
+                .add_command_buffer(command_buffer)
+                .submit();
+        if (!submit_result)
+        {
+            log::error("vengine::vengine::execute(std::function<void(VkCommandBuffer&)>)", VKB_ERROR("Failed to submit to render queue.", submit_result));
+            return submit_result;
+        }
+
+        // Wait for fence
+        wait_for_fence(m_general_fence);
+    }
+    destroy_command_buffer(m_general_command_pool, command_buffer);
+
+    vkResetCommandPool(m_vkb_device.device, m_general_command_pool, 0);
+    return {};
 }
 
 #pragma region glfw

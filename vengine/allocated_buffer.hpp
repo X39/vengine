@@ -5,9 +5,13 @@
 #ifndef GAME_PROJ_ALLOCATED_BUFFER_HPP
 #define GAME_PROJ_ALLOCATED_BUFFER_HPP
 #include "vk_mem_alloc.h"
+#include "vulkan-utils/stringify.hpp"
+#include "vulkan-utils/result.hpp"
+#include "log.hpp"
 
 #include <span>
 #include <functional>
+#include <string>
 namespace vengine
 {
     struct allocated_buffer
@@ -22,15 +26,22 @@ namespace vengine
         [[nodiscard]] bool uploaded() const { return buffer || allocator || allocation; }
         void destroy();
 
-        void with_mapped(const std::function<void(std::span<uint8_t>&)>& func) const
+        vulkan_utils::result<void> with_mapped(const std::function<void(std::span<uint8_t>&)>& func) const
         {
             void* data{};
-            vmaMapMemory(allocator, allocation, &data);
+            auto map_memory_result = vmaMapMemory(allocator, allocation, &data);
+            if (map_memory_result != VK_SUCCESS)
+            {
+                auto message = std::string("Failed to map memory (").append(vulkan_utils::stringify::data(map_memory_result)).append(")");
+                log::error("vengine::allocated_buffer::with_mapped(const std::function<void(std::span<uint8_t>&)>&)", message);
+                return { map_memory_result, message };
+            }
 
             std::span span{ reinterpret_cast<uint8_t*>(data), size };
             func(span);
 
             vmaUnmapMemory(allocator, allocation);
+            return {};
         }
     };
 }

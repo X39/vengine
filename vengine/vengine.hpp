@@ -445,6 +445,8 @@ namespace vengine
         VkDescriptorPool m_descriptor_pool{};
         VkDescriptorSetLayout m_descriptor_set_layout{};
         VkPhysicalDeviceProperties m_physical_device_properties{};
+        VkCommandPool m_general_command_pool{};
+        VkFence m_general_fence{};
         std::vector<VkShaderModule> m_shader_modules{};
         std::vector<VkImage> m_swap_chain_images{};
         std::vector<VkImageView> m_swap_chain_image_views{};
@@ -458,8 +460,10 @@ namespace vengine
 
 
         [[maybe_unused]] [[nodiscard]] std::optional<VkCommandBuffer> create_command_buffer(frame_data& frame) const;
+        [[maybe_unused]] [[nodiscard]] std::optional<VkCommandBuffer> create_command_buffer(VkCommandPool& command_pool) const;
 
         [[maybe_unused]] [[maybe_unused]] void destroy_command_buffer(frame_data& frame, VkCommandBuffer buffer) const;
+        [[maybe_unused]] [[maybe_unused]] void destroy_command_buffer(VkCommandPool& command_pool, VkCommandBuffer buffer) const;
     public:
         vengine();
 
@@ -498,6 +502,10 @@ namespace vengine
         {
             return m_vma_allocator;
         }
+
+        vulkan_utils::result<void> wait_for_fence(VkFence fence);
+
+        vulkan_utils::result<void> execute(std::function<void(VkCommandBuffer& command_buffer)> func);
 
         frame_data& current_frame_data() { return m_frame_data_structures[m_frame_data_index]; }
 
