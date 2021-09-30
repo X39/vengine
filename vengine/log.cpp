@@ -14,33 +14,46 @@
 #define DEBUG_TAG   "[DBG]"
 #define NEW_LINE "\r\n"
 
+static std::string ts()
+{
+    const size_t max_size = 64;
+    std::string out;
+    out.resize(max_size);
+    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm now_tm = *std::localtime(&now_c);
+    size_t len = std::strftime(out.data(), max_size, "[%Y-%m-%d %H:%M:%S]", &now_tm);
+    out.resize(len);
+    return out;
+}
+
 void vengine::log::debug(std::string_view source, std::string_view message)
 {
 #if _DEBUG
-    std::cout<< DEBUG_TAG << "[" << source << "] " << message << std::endl;
-    log_file() << DEBUG_TAG << "[" << source << "] " << message << std::endl;
+    std::cout << ts() << DEBUG_TAG << "[" << source << "] " << message << std::endl;
+    log_file() << ts() << DEBUG_TAG << "[" << source << "] " << message << std::endl;
 #endif
 }
 void vengine::log::info(std::string_view source, std::string_view message)
 {
 #if _DEBUG
-    std::cout << INFO_TAG << "[" << source << "] " << message << std::endl;
+    std::cout << ts() << INFO_TAG << "[" << source << "] " << message << std::endl;
 #endif
-    log_file() << INFO_TAG << "[" << source << "] " << message << std::endl;
+    log_file() << ts() << INFO_TAG << "[" << source << "] " << message << std::endl;
 }
 void vengine::log::warning(std::string_view source, std::string_view message)
 {
 #if _DEBUG
-    std::cerr << WARNING_TAG << "[" << source << "] " << message << std::endl;
+    std::cerr << ts() << WARNING_TAG << "[" << source << "] " << message << std::endl;
 #endif
-    log_file() << WARNING_TAG << "[" << source << "] " << message << std::endl;
+    log_file() << ts() << WARNING_TAG << "[" << source << "] " << message << std::endl;
 }
 void vengine::log::error(std::string_view source, std::string_view message)
 {
 #if _DEBUG
-    std::cerr << ERROR_TAG << "[" << source << "] " << message << std::endl;
+    std::cerr << ts() << ERROR_TAG << "[" << source << "] " << message << std::endl;
 #endif
-    log_file() << ERROR_TAG << "[" << source << "] " << message << std::endl;
+    log_file() << ts() << ERROR_TAG << "[" << source << "] " << message << std::endl;
 }
 
 std::fstream& vengine::log::log_file()
