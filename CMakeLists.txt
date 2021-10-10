@@ -21,7 +21,7 @@ find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(EnTT REQUIRED)
 
-add_executable(game-proj vengine/ecs/position.hpp vengine/vulkan-utils/submit_builder.hpp vengine/vulkan-utils/fence_builder.hpp)
+add_executable(game-proj vengine/ecs/position.hpp vengine/vulkan-utils/submit_builder.hpp vengine/vulkan-utils/fence_builder.hpp vengine/texture.cpp vengine/texture.hpp)
 target_sources(game-proj PUBLIC
         scenes/test.hpp
         vengine/vengine.hpp
@@ -56,7 +56,9 @@ target_sources(game-proj PRIVATE
         vengine/allocated_buffer.cpp
         vengine/allocated_image.cpp
         vengine/scene.cpp)
+
 target_compile_definitions(game-proj PUBLIC GLFW_INCLUDE_VULKAN)
+target_include_directories(game-proj PRIVATE submodules/stb)
 target_link_libraries(game-proj glfw)
 target_link_libraries(game-proj glm::glm)
 target_link_libraries(game-proj Vulkan::Vulkan)

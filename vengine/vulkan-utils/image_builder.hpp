@@ -28,6 +28,18 @@ namespace vengine::vulkan_utils
         std::optional<VmaMemoryUsage> m_memory_usage;
         VkMemoryPropertyFlags m_memory_property_flags;
     public:
+        image_builder(VmaAllocator allocator, uint32_t width, uint32_t height, uint32_t depth)
+                : m_allocator(allocator),
+                  m_extent({ }),
+                  m_image_type(VK_IMAGE_TYPE_2D),
+                  m_mip_level(1),
+                  m_array_layers(1),
+                  m_memory_property_flags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+        {
+            m_extent.width = width;
+            m_extent.height = height;
+            m_extent.depth = depth;
+        }
         image_builder(VmaAllocator allocator, VkExtent3D extent)
                 : m_allocator(allocator),
                   m_extent(extent),

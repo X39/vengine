@@ -8,7 +8,7 @@
 #include <chrono>
 
 // Current Chapter https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Image_views
-// Current Chapter https://vkguide.dev/docs/chapter-5/vulkan_images/
+// Current Chapter https://vkguide.dev/docs/chapter-5/drawing_images/
 
 
 void glfw_error(int error_code, const char *error_message)
