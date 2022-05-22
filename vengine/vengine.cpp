@@ -17,6 +17,7 @@
 
 #include <GLFW/glfw3.h>
 
+#include <array>
 #include <sstream>
 
 using namespace vengine::vulkan_utils;
@@ -286,7 +287,7 @@ vengine::vengine::vengine()
         m_frame_buffers = std::vector<VkFramebuffer>(m_swap_chain_image_views.size(), nullptr);
         for (size_t i = 0; i < m_swap_chain_image_views.size(); i++)
         {
-            auto attachments = std::array{ m_swap_chain_image_views[i], m_depths_image_view };
+            auto attachments = std::array<VkImageView, 2>{ m_swap_chain_image_views[i], m_depths_image_view };
             framebuffer_create_info.attachmentCount = (uint32_t)attachments.size();
             framebuffer_create_info.pAttachments = attachments.data();
             auto

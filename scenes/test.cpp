@@ -110,13 +110,17 @@ void scenes::test::render_pass(vengine::vengine::on_render_pass_event_args &args
 
 void scenes::test::load_scene()
 {
+    vengine::log::info("scenes::test::load_scene()", "Loading fragment shader");
     m_fragment_shader = engine().create_shader_module(vengine::ram_file::from_disk("shaders/frag.spv").value()).value();
+    vengine::log::info("scenes::test::load_scene()", "Loading vertex shader");
     m_vertex_shader = engine().create_shader_module(vengine::ram_file::from_disk("shaders/vert.spv").value()).value();
+    vengine::log::info("scenes::test::load_scene()", "Creating pipeline layout");
     m_pipeline_layout = vengine::vulkan_utils::pipeline_layout_builder(engine().vulkan_device())
             // .add_push_constant_range(sizeof(vengine::mesh::push_constant),0,VK_SHADER_STAGE_VERTEX_BIT)
             .add_descriptor_set_layout(engine().vulkan_descriptor_set_layout())
             .build()
             .value();
+    vengine::log::info("scenes::test::load_scene()", "Creating pipeline");
     m_pipeline = vengine::vulkan_utils::pipeline_builder(
             engine().vulkan_device(),
             engine().vulkan_render_pass(),
@@ -133,6 +137,7 @@ void scenes::test::load_scene()
                               .add_color_blend()
                               .build()
                               .value();
+    vengine::log::info("scenes::test::load_scene()", "Creating triangle mesh");
     m_triangle_mesh = vengine::mesh {
             vengine::vertex {
                     { 1.0f, 1.0f, 0.0f },
@@ -146,12 +151,16 @@ void scenes::test::load_scene()
                     { 0.0f, -1.0f, 0.0f },
                     { },
                     { 0.0f, 1.0f,  0.0f } }, };
+    vengine::log::info("scenes::test::load_scene()", "Uploading triangle mesh");
     m_triangle_mesh.upload_to_gpu_memory(engine(), engine().allocator());
+    vengine::log::info("scenes::test::load_scene()", "Loading monkey head mesh");
     m_monkey_mesh = vengine::mesh::from_obj(
             vengine::ram_file::from_disk("assets/monkey_smooth.obj").value(),
             vengine::ram_file::from_disk("assets/monkey_smooth.mtl").value()).value();
+    vengine::log::info("scenes::test::load_scene()", "Uploading monkey head mesh");
     m_monkey_mesh.upload_to_gpu_memory(engine(), engine().allocator());
 
+    vengine::log::info("scenes::test::load_scene()", "Creating camera");
     {
         vengine::ecs::position pos { };
         pos.data = { 0, 0, 0 };
@@ -165,7 +174,8 @@ void scenes::test::load_scene()
         ecs().emplace<vengine::ecs::velocity>(m_camera, vel);
     }
 
-    const int max = 22;
+    vengine::log::info("scenes::test::load_scene()", "Creating entities");
+    const int max = 5;
     const int mul = 5;
     for (int x = -max; x <= max; x++)
     {

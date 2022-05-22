@@ -18,23 +18,31 @@ void glfw_error(int error_code, const char *error_message)
 
 int main(int argc, char **argv)
 {
-    vengine::log::info("main(int, char**)", "Starting...");
+    vengine::log::info("main(int, char**)", "Creating engine...");
     vengine::vengine engine;
     if (!engine.good())
     {
+        vengine::log::error("main(int, char**)", "Failed to create the engine");
         return EXIT_FAILURE;
     }
+    vengine::log::info("main(int, char**)", "Engine was created");
 
 
     bool alive = true;
+    vengine::log::info("main(int, char**)", "Subscribing to window close event");
     engine.on_window_close.subscribe([&](auto& source, auto& args) { alive = false; });
     // Run Application Loop
     try
     {
+        vengine::log::info("main(int, char**)", "Loading scene ...");
         scenes::test t(engine);
         scenes::test::raii_load t_raii(t);
+        vengine::log::info("main(int, char**)", "Scene was loaded");
         size_t old_fps_count = 0;
         auto old_ts = std::chrono::system_clock::now();
+
+
+        vengine::log::info("main(int, char**)", "Starting engine loop");
         while (alive)
         {
             vengine::vengine::handle_pending_events();
